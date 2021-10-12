@@ -11,7 +11,14 @@ from tqdm import tqdm
 from scipy.stats import qmc
 import numpy as np
 import pickle
+from argparse import ArgumentParser
 
+
+parser = ArgumentParser()
+parser.add_argument("-o", "--outfile", required=True, dest="outfile")
+args = parser.parse_args()
+
+outfile = open(args.outfile, "wb")
 
 sca_len = 100
 c_medium = 0.3 / 1.35
@@ -27,7 +34,7 @@ dists = (10 ** qmc.scale(sample, -1, np.log10(500))).squeeze()
 
 training_data = []
 all_data = []
-for det_dist in tqdm(dists, total=len(dists)):
+for det_dist in tqdm(dists, total=len(dists), disable=True):
     det_pos = jnp.array([0, 0, det_dist])
 
     fun = make_step_function(
@@ -47,4 +54,6 @@ for det_dist in tqdm(dists, total=len(dists)):
     isec_times, ph_thetas, stepss, isec_poss = collect_hits(make_n_steps, 1e7, 200)
     all_data.append([det_dist, isec_times, ph_thetas, stepss, isec_poss])
 
-pickle.dump(all_data, open("detected_photons.pickle", "wb"))
+
+
+pickle.dump(all_data, outfile)
