@@ -1,0 +1,10 @@
++SingularityImage = "/data/p-one/chaack/container/pytorch-geo.sif"
+executable = /bin/env 
+arguments = python /data/p-one/chaack/hyperion/generate_photons.py -o /data/p-one/chaack/photon_table.pickle
+Requirements = HasSingularity
+request_gpus = 1
+log = logs/log
+output = logs/out.$(PROCESS)
+error = logs/err.$(PROCESS)
+queue 1
+
