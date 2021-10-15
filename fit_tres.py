@@ -4,8 +4,8 @@ from tqdm import tqdm, trange
 import pickle
 from argparse import ArgumentParser
 
-from gnn_testbed.models.photon_arrival_time.pdf import make_gamma_exponential
-from gnn_testbed.event_generation.utils import cherenkov_ang_dist, ANG_DIST_INT
+from hyperion.models.photon_arrival_time.pdf import make_gamma_exponential
+from hyperion.utils import cherenkov_ang_dist, ANG_DIST_INT
 
 parser = ArgumentParser()
 parser.add_argument("-i", "--infile", required=True, dest="infile")
