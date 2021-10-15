@@ -289,9 +289,9 @@ def sph_to_cart(theta, phi=0, r=1):
     return jnp.array([x, y, z])
 
 
-def collect_hits(step_function, nphotons, nsims):
+def collect_hits(step_function, nphotons, nsims, seed=0):
     """Convenience function to run the photon prop multiple times and collect hits."""
-    key = random.PRNGKey(0)
+    key = random.PRNGKey(seed)
     isec_times = []
     ph_thetas = []
     stepss = []
