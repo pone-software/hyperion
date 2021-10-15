@@ -17,7 +17,9 @@ from argparse import ArgumentParser
 parser = ArgumentParser()
 parser.add_argument("-o", "--outfile", required=True, dest="outfile")
 parser.add_argument("-s", "--seed", type=int, required=False, dest="seed", default=0)
-parser.add_argument("-d", "--dist", type=float, required=False, dest="dist", default=None)
+parser.add_argument(
+    "-d", "--dist", type=float, required=False, dest="dist", default=None
+)
 args = parser.parse_args()
 
 outfile = open(args.outfile, "wb")
@@ -56,7 +58,9 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
     )
     make_n_steps = jit(vmap(fun, in_axes=[0]))
 
-    isec_times, ph_thetas, stepss, isec_poss = collect_hits(make_n_steps, 1e7, 300, args.seed)
+    isec_times, ph_thetas, stepss, isec_poss = collect_hits(
+        make_n_steps, 1e7, 300, args.seed
+    )
     all_data.append([det_dist, isec_times, ph_thetas, stepss, isec_poss])
 
 
