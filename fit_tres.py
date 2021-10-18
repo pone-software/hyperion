@@ -32,7 +32,7 @@ def fit(t, w):
     obj, lhfunc = make_gamma_exponential(t, w)
 
     best_res = None
-    for _ in range(5):
+    for _ in range(8):
         seed = np.random.uniform(0, 1, size=(4,))
         # seed = np.random.uniform(0, 1, size=(6,))
 
@@ -72,6 +72,9 @@ for i in trange(len(det_ph)):
         t, w, ucf = make_data(isec_times, weights * c_weight, det_dist, thr=2)
         best_res, func = fit(t, w)
 
+        if best_res is None:
+            print(f"Couldn't fit {i}, {theta}")
+            continue
         totw = weights * c_weight
         surv_frac = totw.sum() / (1e7 * 300)
 
