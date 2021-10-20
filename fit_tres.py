@@ -1,3 +1,6 @@
+from jax.config import config
+
+config.update("jax_enable_x64", True)
 import scipy.optimize
 import numpy as np
 from tqdm import tqdm, trange
@@ -30,8 +33,17 @@ def make_data(t, w, det_dist, thr=2):
     return tgeo[mask] - thr, w[mask], 1 - (w[mask].sum() / w.sum())
 
 
-def fit(t, w):
-    obj, lhfunc = make_exp_exp_exp(t, w)
+def wrap(f):
+    def _f(*pars):
+        if len(pars) == 1:
+            pars = pars[0]
+        res = f(*pars)
+        return np.array(res[0], order="F"), np.array(res[1], order="F")
+
+    return _f
+
+
+def fit(obj):
 
     best_res = None
     for _ in range(5):
@@ -65,7 +77,7 @@ def fit(t, w):
             continue
         if (best_res is None) or res[1] < best_res[1]:
             best_res = res
-    return best_res, lhfunc
+    return best_res
 
 
 fit_results = []
@@ -87,7 +99,8 @@ for i in trange(len(det_ph)):
     for theta in tqdm(thetas, total=len(thetas), leave=False):
         c_weight = cherenkov_ang_dist(np.cos(ph_thetas - theta)) / ANG_DIST_INT * 2
         t, w, ucf = make_data(isec_times, weights * c_weight, det_dist, thr=2)
-        best_res, func = fit(t, w)
+        obj, lhfunc = make_exp_exp_exp(t, w)
+        best_res = fit(wrap(obj))
 
         if best_res is None:
             print(f"Couldn't fit {i}, {theta}")
