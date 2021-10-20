@@ -9,6 +9,7 @@ from hyperion.utils import cherenkov_ang_dist, ANG_DIST_INT
 
 parser = ArgumentParser()
 parser.add_argument("-i", "--infile", required=True, dest="infile")
+parser.add_argument("-o", "--outfile", required=True, dest="outfile")
 args = parser.parse_args()
 
 
@@ -32,15 +33,15 @@ def fit(t, w):
     obj, lhfunc = make_gamma_exponential(t, w)
 
     best_res = None
-    for _ in range(8):
+    for _ in range(10):
         seed = np.random.uniform(0, 1, size=(4,))
         # seed = np.random.uniform(0, 1, size=(6,))
 
         res = scipy.optimize.fmin_l_bfgs_b(
             obj,
             seed,
-            epsilon=0.001,
-            bounds=((1e-3, 1), (0.5, None), (1e-3, 0.5), (1e-6, 1 - 1e-6)),
+            epsilon=0.0001,
+            bounds=((1e-3, 1.2), (0.3, None), (1e-3, 0.7), (1e-6, 1 - 1e-6)),
             factr=100,
             approx_grad=True,
         )
@@ -81,4 +82,4 @@ for i in trange(len(det_ph)):
         fit_results.append(
             {"input": [theta, det_dist], "output": list(best_res[0]) + [ucf, surv_frac]}
         )
-pickle.dump(fit_results, open("arrival_time_pdf_pars.pickle", "wb"))
+pickle.dump(fit_results, open(args.outfile, "wb"))
