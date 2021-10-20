@@ -4,7 +4,7 @@ from tqdm import tqdm, trange
 import pickle
 from argparse import ArgumentParser
 
-from hyperion.models.photon_arrival_time.pdf import make_gamma_exponential
+from hyperion.models.photon_arrival_time.pdf import make_exp_exp_exp
 from hyperion.utils import cherenkov_ang_dist, ANG_DIST_INT
 
 parser = ArgumentParser()
@@ -23,6 +23,7 @@ det_ph = pickle.load(open(args.infile, "rb"))
 
 
 def make_data(t, w, det_dist, thr=2):
+    """Truncate data below threshold."""
     tgeo = t - ((det_dist - r) / c_medium)
     mask = tgeo > thr
 
@@ -30,13 +31,12 @@ def make_data(t, w, det_dist, thr=2):
 
 
 def fit(t, w):
-    obj, lhfunc = make_gamma_exponential(t, w)
+    obj, lhfunc = make_exp_exp_exp(t, w)
 
     best_res = None
-    for _ in range(10):
+    for _ in range(5):
+        """
         seed = np.random.uniform(0, 1, size=(4,))
-        # seed = np.random.uniform(0, 1, size=(6,))
-
         res = scipy.optimize.fmin_l_bfgs_b(
             obj,
             seed,
@@ -44,6 +44,22 @@ def fit(t, w):
             bounds=((1e-3, 1.2), (0.3, None), (1e-3, 0.7), (1e-6, 1 - 1e-6)),
             factr=100,
             approx_grad=True,
+        )
+        """
+        seed = np.random.uniform(0, 1, size=6)
+        res = scipy.optimize.fmin_l_bfgs_b(
+            obj,
+            seed,
+            bounds=(
+                (1e-3, None),
+                (1e-3, None),
+                (1e-3, None),
+                (0, None),
+                (0, None),
+                (0, None),
+            ),
+            factr=100,
+            approx_grad=False,
         )
         if res[2]["warnflag"] == 2:
             continue
