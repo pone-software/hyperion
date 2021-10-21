@@ -54,7 +54,9 @@ def fit(obj):
             approx_grad=True,
         )
         """
-        seed = np.random.uniform(0, 1, size=6)
+        seed = np.random.uniform(0, 1, size=5)
+        seed[3] *= np.pi
+        seed[4] *= 2 * np.pi
         res = scipy.optimize.fmin_l_bfgs_b(
             obj,
             seed,
@@ -62,9 +64,8 @@ def fit(obj):
                 (1e-3, None),
                 (1e-3, None),
                 (1e-3, None),
-                (0, 1),
-                (0, 1),
-                (0, 1),
+                (0, np.pi),
+                (0, 2 * np.pi),
             ),
             factr=100,
             approx_grad=False,

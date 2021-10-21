@@ -50,14 +50,21 @@ def make_exp_exp_exp(data, data_weights):
 
     """
 
-    def func(xs, scale1, scale2, scale3, w1, w2, w3):
+    def func(xs, scale1, scale2, scale3, w1, w2):
 
         scales = jnp.array([scale1, scale2, scale3]) * 100
         scales = jnp.sort(scales)
 
+        weights = (
+            jnp.array(
+                [jnp.sin(w1) * jnp.cos(w2), jnp.sin(w1) * jnp.sin(w2), jnp.cos(w1)]
+            )
+            ** 2
+        )
+        """
         wsum = w1 + w2 + w3
         weights = jnp.array([w1 / wsum, w2 / wsum, w3 / wsum])
-
+        """
         res = jnp.log(
             weights[0] * expon_pdf(xs, scales[0])
             + weights[1] * expon_pdf(xs, scales[1])
@@ -66,11 +73,11 @@ def make_exp_exp_exp(data, data_weights):
 
         return res
 
-    def obj(scale1, scale2, scale3, w1, w2, w3):
-        val = -jnp.sum((func(data, scale1, scale2, scale3, w1, w2, w3) * data_weights))
+    def obj(scale1, scale2, scale3, w1, w2):
+        val = -jnp.sum((func(data, scale1, scale2, scale3, w1, w2) * data_weights))
         return val
 
-    return jit(value_and_grad(obj, [0, 1, 2, 3, 4, 5])), func
+    return jit(value_and_grad(obj, [0, 1, 2, 3, 4])), func
 
 
 def make_gamma_exponential(data, weights):
