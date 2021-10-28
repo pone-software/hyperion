@@ -114,7 +114,7 @@ if __name__ == "__main__":
                 print(f"Couldn't fit {i}, {theta}")
                 continue
             totw = weights * c_weight
-            surv_frac = totw.sum() / (1e7 * 300)
+            nph_total = totw.sum()
 
             # Fit arrival positions with FB5
             isec_poss[:, [2, 0]] = isec_poss[:, [0, 2]]
@@ -125,7 +125,7 @@ if __name__ == "__main__":
             fit_results.append(
                 {
                     "input": [theta, det_dist],
-                    "output_tres": list(best_res[0]) + [ucf, surv_frac],
+                    "output_tres": list(best_res[0]) + [ucf, nph_total],
                     "output_arrv_pos": fb5_pars,
                 }
             )
