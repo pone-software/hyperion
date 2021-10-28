@@ -1,4 +1,6 @@
+import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 
 class PhotonArivalTimePars(nn.Module):
@@ -6,7 +8,9 @@ class PhotonArivalTimePars(nn.Module):
     MLP for predicting the parameters of the photon arrival time distribution.
     """
 
-    def __init__(self, n_per_layer, input_size, output_size, dropout=0.5):
+    def __init__(
+        self, n_per_layer, input_size, output_size, final_activations=None, dropout=0.5
+    ):
 
         super().__init__()
 
@@ -25,6 +29,17 @@ class PhotonArivalTimePars(nn.Module):
             ]
         layers.append(nn.Linear(n_per_layer[-1], output_size))
         self.layers = nn.Sequential(*layers)
+        self.final_activations = final_activations
 
     def forward(self, x):
-        return self.layers(x)
+        output = self.layers(x)
+        if self.final_activations is not None:
+            if isinstance(self.final_activations, list):
+                act_output = [
+                    fa(node) for fa, node in zip(self.final_activations, output.T)
+                ]
+                output = torch.stack(act_output, dim=-1)
+            else:
+                output = self.final_activations(output)
+
+        return output

@@ -1,19 +1,25 @@
+"""Utility functions."""
 import numpy as np
 from scipy.integrate import quad
 from .constants import Constants
 
 
-def calc_tres(t, det_radius, det_dist, c_medium):
+def calc_tres(
+    t: np.ndarray, det_radius: float, det_dist: float, c_medium: float
+) -> np.ndarray:
     """
     Calculate time residual.
 
     The time residual is calculated by subtracting the expected (geometric)
     time a photon takes to travel det_dist-det_radius from the measured arrival time
+
+    Parameters:
+        t:
     """
     return t - ((det_dist - det_radius) / c_medium)
 
 
-def cherenkov_ang_dist(costheta, n_ph=1.35):
+def cherenkov_ang_dist(costheta: np.ndarray, n_ph: float = 1.35) -> np.ndarray:
     """
     Angular distribution of cherenkov photons for EM cascades.
 

@@ -1,6 +1,4 @@
-"""
-Script for fitting time residual distributions.
-"""
+"""Script for fitting time residual distributions."""
 import scipy.optimize
 import numpy as np
 from tqdm import tqdm, trange
@@ -10,7 +8,11 @@ from jax.config import config
 
 config.update("jax_enable_x64", True)
 
-from hyperion.models.photon_arrival_time.pdf import make_exp_exp_exp
+from hyperion.models.photon_arrival_time.pdf import (
+    make_exp_exp_exp,
+    make_obj_func,
+    fb5_mle,
+)
 from hyperion.utils import cherenkov_ang_dist, ANG_DIST_INT, calc_tres
 
 
@@ -29,7 +31,9 @@ def make_data(t, w, det_dist, thr=2):
     return tres[mask] - thr, w[mask], 1 - (w[mask].sum() / w.sum())
 
 
-def wrap(f):
+def wrap_obj_func(f):
+    """Wrap an objective function by unpacking parameters."""
+
     def _f(*pars):
         if len(pars) == 1:
             pars = pars[0]
@@ -40,20 +44,15 @@ def wrap(f):
 
 
 def fit(obj):
+    """
+    Fit the objective function.
+
+    The fit is repeated 5 times with varying seeds
+    """
 
     best_res = None
     for _ in range(5):
-        """
-        seed = np.random.uniform(0, 1, size=(4,))
-        res = scipy.optimize.fmin_l_bfgs_b(
-            obj,
-            seed,
-            epsilon=0.0001,
-            bounds=((1e-3, 1.2), (0.3, None), (1e-3, 0.7), (1e-6, 1 - 1e-6)),
-            factr=100,
-            approx_grad=True,
-        )
-        """
+
         seed = np.random.uniform(0, 1, size=5)
         seed[3:] *= np.pi / 2
 
@@ -88,6 +87,9 @@ if __name__ == "__main__":
 
     fit_results = []
     rstate = np.random.RandomState(0)
+
+    pdf = make_exp_exp_exp()
+
     for i in trange(len(det_ph)):
         thetas = np.arccos(rstate.uniform(-1, 1, 100))
         thetas = np.concatenate(
@@ -105,8 +107,8 @@ if __name__ == "__main__":
         for theta in tqdm(thetas, total=len(thetas), leave=False):
             c_weight = cherenkov_ang_dist(np.cos(ph_thetas - theta)) / ANG_DIST_INT * 2
             t, w, ucf = make_data(isec_times, weights * c_weight, det_dist, thr=2)
-            obj, lhfunc = make_exp_exp_exp(t, w)
-            best_res = fit(wrap(obj))
+            obj = make_obj_func(pdf, t, w, 5)
+            best_res = fit(wrap_obj_func(obj))
 
             if best_res is None:
                 print(f"Couldn't fit {i}, {theta}")
@@ -114,10 +116,17 @@ if __name__ == "__main__":
             totw = weights * c_weight
             surv_frac = totw.sum() / (1e7 * 300)
 
+            # Fit arrival positions with FB5
+            isec_poss[:, [2, 0]] = isec_poss[:, [0, 2]]
+            fb5_pars = fb5_mle(
+                isec_poss[:100000], (weights * c_weight)[:100000]
+            )  # use at most 100k data points
+
             fit_results.append(
                 {
                     "input": [theta, det_dist],
-                    "output": list(best_res[0]) + [ucf, surv_frac],
+                    "output_tres": list(best_res[0]) + [ucf, surv_frac],
+                    "output_arrv_pos": fb5_pars,
                 }
             )
     pickle.dump(fit_results, open(args.outfile, "wb"))

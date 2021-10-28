@@ -1,4 +1,4 @@
-"""Impementation of the main propagation code."""
+"""Impementation of the photon propagation code."""
 import jax.numpy as jnp
 from jax import random
 from jax.lax import cond, while_loop
@@ -290,7 +290,7 @@ def sph_to_cart(theta, phi=0, r=1):
 
 
 def collect_hits(step_function, nphotons, nsims, seed=0):
-    """Convenience function to run the photon prop multiple times and collect hits."""
+    """Run photon prop multiple times and collect hits."""
     key = random.PRNGKey(seed)
     isec_times = []
     ph_thetas = []
