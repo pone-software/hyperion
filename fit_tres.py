@@ -131,8 +131,13 @@ if __name__ == "__main__":
 
             # Fit arrival positions with FB5
             isec_poss[:, [2, 0]] = isec_poss[:, [0, 2]]
+            idx = np.random.choice(
+                np.arange(isec_poss.shape[0]),
+                size=min(isec_poss.shape[0], 100000),
+                replace=False,
+            )
             fb5_pars = fb5_mle(
-                isec_poss[:100000], totw[:100000]
+                isec_poss[idx], totw[idx]
             )  # use at most 100k data points
 
             fit_results.append(
