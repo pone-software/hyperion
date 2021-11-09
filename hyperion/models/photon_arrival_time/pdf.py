@@ -161,9 +161,10 @@ def fb5_mle(xs, weights, warning="warn"):
     # first get estimated moments
     try:
         k_me = kent_me(xs)
-    except ValueError:
+    except ValueError as e:
         print(xs)
-        continue
+        raise e
+
     theta, phi, psi, kappa, beta = k_me.theta, k_me.phi, k_me.psi, k_me.kappa, k_me.beta
 
     # here the mle is done
