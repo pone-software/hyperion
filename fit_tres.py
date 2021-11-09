@@ -129,17 +129,20 @@ if __name__ == "__main__":
             totw = weights * c_weight
             nph_total = totw.sum()
 
+            # Calculate photon arrival coordinates relative to module center
+            det_center = np.asarray([0, 0, det_dist])
+            rel = isec_poss - det_center
+            rel = rel / np.linalg.norm(rel, axis=1)[:, np.newaxis]
+
             # Fit arrival positions with FB5
-            isec_poss[:, [2, 0]] = isec_poss[:, [0, 2]]
+            rel[:, [2, 0]] = rel[:, [0, 2]]
             idx = np.random.choice(
-                np.arange(isec_poss.shape[0]),
-                size=min(isec_poss.shape[0], 100000),
+                np.arange(rel.shape[0]),
+                size=min(rel.shape[0], 100000),
                 replace=False,
             )
             try:
-                fb5_pars = fb5_mle(
-                    isec_poss[idx], totw[idx]
-                )  # use at most 100k data points
+                fb5_pars = fb5_mle(rel[idx], totw[idx])  # use at most 100k data points
             except AssertionError:
                 print(isec_poss[idx])
                 continue
