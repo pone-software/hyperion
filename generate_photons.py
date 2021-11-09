@@ -3,8 +3,9 @@ import jax.numpy as jnp
 from jax import jit, vmap
 from hyperion.propagate import (
     photon_sphere_intersection,
-    mixed_hg_rayleigh,
+    mixed_hg_rayleigh_antares,
     make_step_function,
+    make_photon_trajectory_fun,
     collect_hits,
 )
 from tqdm import tqdm
@@ -68,24 +69,31 @@ all_data = []
 for det_dist in tqdm(dists, total=len(dists), disable=True):
     det_pos = jnp.array([0, 0, det_dist])
 
-    fun = make_step_function(
+    step_fun = make_step_function(
         1 / medium["sca_len"],
         c_medium,
         det_pos,
         args.det_radius,
-        medium["abs_len"] * 15,
+        intersection_f=photon_sphere_intersection,
+        scattering_function=mixed_hg_rayleigh_antares,
+    )
+
+    max_time = jnp.linalg.norm(emitter_x - det_pos) / c_medium + 1000
+
+    trajec_fun = make_photon_trajectory_fun(
+        step_fun,
         emitter_x,
         emitter_t,
-        mode="uniform",
-        intersection_f=photon_sphere_intersection,
-        scattering_function=mixed_hg_rayleigh,
+        max_time,
+        emission_mode="uniform",
+        stepping_mode="until_intersect",
     )
-    make_n_steps = jit(vmap(fun, in_axes=[0]))
+    trajec_fun_v = jit(vmap(trajec_fun, in_axes=[0]))
 
-    isec_times, ph_thetas, stepss, isec_poss = collect_hits(
-        make_n_steps, args.ph_per_batch, args.n_ph_batches, args.seed
+    times, emission_angles, steps, positions = collect_hits(
+        trajec_fun_v, args.ph_per_batch, args.n_ph_batches, args.seed
     )
-    all_data.append([det_dist, isec_times, ph_thetas, stepss, isec_poss])
+    all_data.append([det_dist, times, emission_angles, steps, positions])
 
 
 with open(args.outfile, "wb") as outfile:

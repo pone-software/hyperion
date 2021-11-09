@@ -145,7 +145,7 @@ def make_gamma_exponential(data, weights):
 
 def fb5_mle(xs, weights, warning="warn"):
     """
-    Fits FB5 distribution to weighted data
+    Fits FB5 distribution to weighted data.
     """
 
     # method that generates the minus L to be minimized
@@ -159,7 +159,11 @@ def fb5_mle(xs, weights, warning="warn"):
         return -(fb8(*x).log_pdf(xs) * weights).sum() / weights.sum()
 
     # first get estimated moments
-    k_me = kent_me(xs)
+    try:
+        k_me = kent_me(xs)
+    except ValueError:
+        print(xs)
+        continue
     theta, phi, psi, kappa, beta = k_me.theta, k_me.phi, k_me.psi, k_me.kappa, k_me.beta
 
     # here the mle is done

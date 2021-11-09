@@ -1,9 +1,18 @@
-"""Impementation of the photon propagation code."""
+"""Implementation of the photon propagation code."""
 import jax.numpy as jnp
 from jax import random
 from jax.lax import cond, while_loop
 import numpy as np
 import jax
+
+
+def sph_to_cart(theta, phi=0, r=1):
+    """Transform spherical to cartesian coordinates."""
+    x = r * jnp.sin(theta) * jnp.cos(phi)
+    y = r * jnp.sin(theta) * jnp.sin(phi)
+    z = r * jnp.cos(theta)
+
+    return jnp.array([x, y, z])
 
 
 def photon_sphere_intersection(photon_x, photon_p, target_x, target_r, step_size):
@@ -81,9 +90,9 @@ def photon_plane_intersection(photon_x, photon_p, target_x, target_r, step_size)
     return result
 
 
-def henyey_greenstein(subkey, g=0.9):
+def henyey_greenstein_scattering_angle(key, g=0.9):
     """Henyey-Greenstein scattering in one plane."""
-    eta = random.uniform(subkey)
+    eta = random.uniform(key)
     costheta = (
         1 / (2 * g) * (1 + g ** 2 - ((1 - g ** 2) / (1 + g * (2 * eta - 1))) ** 2)
     )
@@ -108,14 +117,105 @@ def rayleigh_scattering_angle(key):
     return jnp.arccos(jax.lax.clamp(-1.0, u + v, 1.0))
 
 
-def mixed_hg_rayleigh(key):
-    """Mix of HG and Rayleigh. Distribution similar to ANTARES Petzold+Rayleigh."""
-    k1, k2 = random.split(key)
-    is_rayleigh = random.uniform(k1) < 0.15
+def liu_scattering_angle(key, g=0.95):
+    """
+    Simplified liu scattering.
 
-    return cond(
-        is_rayleigh, rayleigh_scattering_angle, lambda k: henyey_greenstein(k, 0.97), k2
+    https://arxiv.org/pdf/1301.5361.pdf
+    """
+    beta = (1 - g) / (1 + g)
+    xi = random.uniform(key)
+    costheta = 2 * xi ** beta - 1
+    return jnp.arccos(costheta)
+
+
+def make_mixed_scattering_func(f1, f2, ratio):
+    """
+    Create a mixture model with two sampling functions.
+
+    Paramaters:
+        f1, f2: functions
+            Sampling functions taking one argument (random key)
+        ratio: float
+            Fraction of samples drawn from f1
+    """
+
+    def _f(key):
+        k1, k2 = random.split(key)
+        is_f1 = random.uniform(k1) < ratio
+
+        return cond(is_f1, f1, f2, k2)
+
+    return _f
+
+
+"""Mix of HG and Rayleigh. Distribution similar to ANTARES Petzold+Rayleigh."""
+mixed_hg_rayleigh_antares = make_mixed_scattering_func(
+    rayleigh_scattering_angle,
+    lambda k: henyey_greenstein_scattering_angle(k, 0.97),
+    0.15,
+)
+
+"""Mix of HG and Liu. IceCube"""
+mixed_hg_liu_icecube = make_mixed_scattering_func(
+    lambda k: liu_scattering_angle(k, 0.95),
+    lambda k: henyey_greenstein_scattering_angle(k, 0.95),
+    0.35,
+)
+
+
+def calc_new_direction(key, old_dir, scattering_function):
+    """
+    Calculate new direction after sampling a scattering angle.
+
+    Scattering is calculated in a reference frame local
+    to the photon (e_z) and then rotated back to the global coordinate system.
+    """
+    k1, k2 = random.split(key)
+
+    theta = scattering_function(k1)
+    cos_theta = jnp.cos(theta)
+    sin_theta = jnp.sin(theta)
+
+    phi = random.uniform(k2, minval=0, maxval=2 * np.pi)
+    cos_phi = jnp.cos(phi)
+    sin_phi = jnp.sin(phi)
+
+    px, py, pz = old_dir
+
+    is_para_z = jnp.abs(pz) == 1
+
+    new_dir = cond(
+        is_para_z,
+        lambda _: jnp.array(
+            [
+                sin_theta * cos_phi,
+                jnp.sign(pz) * sin_theta * sin_phi,
+                jnp.sign(pz) * cos_theta,
+            ]
+        ),
+        lambda _: jnp.array(
+            [
+                (px * cos_theta)
+                + (
+                    (sin_theta * (px * pz * cos_phi - py * sin_phi))
+                    / (jnp.sqrt(1.0 - pz ** 2))
+                ),
+                (py * cos_theta)
+                + (
+                    (sin_theta * (py * pz * cos_phi + px * sin_phi))
+                    / (jnp.sqrt(1.0 - pz ** 2))
+                ),
+                (pz * cos_theta) - (sin_theta * cos_phi * jnp.sqrt(1.0 - pz ** 2)),
+            ]
+        ),
+        None,
     )
+
+    # Need this for numerical stability?
+    new_dir = new_dir / jnp.linalg.norm(new_dir)
+
+    return new_dir
 
 
 def make_step_function(
@@ -123,12 +223,8 @@ def make_step_function(
     c_medium,
     target_x,
     target_r,
-    max_dist,
-    emitter_x,
-    emitter_t,
-    mode="uniform",
     intersection_f=photon_sphere_intersection,
-    scattering_function=mixed_hg_rayleigh,
+    scattering_function=mixed_hg_rayleigh_antares,
 ):
     """
     Make a photon step function object.
@@ -142,154 +238,136 @@ def make_step_function(
             Position vector of the target
         target_r: float
             Extent of the target (radius for spherical targets)
-        max_dist: float
-            Maximum distance a photon is tracked
-        emitter_x: float[3]
-            Position vector of the emitter
-        emitter_t: float
-            Emitter time
-        mode: "uniform" or "laser"
-            Emission mode
         intersection_f: function
             function used to calculate the intersection
         scattering_function:
             rng function drawing angles from scattering function
     """
 
-    max_time = max_dist / c_medium
-
     def step(pos, dir, time, key, isec, isec_pos, stepcnt):
-        """
-        Function for a single photon step.
-        """
-        k1, k2, k3, k4 = random.split(key, 4)
+        """Single photon step."""
+        k1, k2 = random.split(key)
 
         eta = random.uniform(k1)
         step_size = -jnp.log(eta) / sca_coeff
 
-        new_pos = pos + step_size * dir
+        dstep = step_size * dir
+        new_pos = pos + dstep
         new_time = time + step_size / c_medium
 
-        theta = scattering_function(k2)
-        cos_theta = jnp.cos(theta)
-        sin_theta = jnp.sin(theta)
-
-        phi = random.uniform(k3, minval=0, maxval=2 * np.pi)
-        cos_phi = jnp.cos(phi)
-        sin_phi = jnp.sin(phi)
-
-        px, py, pz = dir
-
-        is_para_z = jnp.abs(pz) == 1
-
-        """
-        Calculate new direction. Scattering is calculated in a reference frame local
-        to the photon (e_z). Need to rotate back to detector frame
-        """
-        new_dir = cond(
-            is_para_z,
-            lambda _: jnp.array(
-                [
-                    sin_theta * cos_phi,
-                    jnp.sign(pz) * sin_theta * sin_phi,
-                    jnp.sign(pz) * cos_theta,
-                ]
-            ),
-            lambda _: jnp.array(
-                [
-                    (px * cos_theta)
-                    + (
-                        (sin_theta * (px * pz * cos_phi - py * sin_phi))
-                        / (jnp.sqrt(1.0 - pz ** 2))
-                    ),
-                    (py * cos_theta)
-                    + (
-                        (sin_theta * (py * pz * cos_phi + px * sin_phi))
-                        / (jnp.sqrt(1.0 - pz ** 2))
-                    ),
-                    (pz * cos_theta) - (sin_theta * cos_phi * jnp.sqrt(1.0 - pz ** 2)),
-                ]
-            ),
-            None,
-        )
-
         # Calculate intersection
-        dstep = new_pos - pos
-        step_size = jnp.linalg.norm(dstep)
         isec, isec_pos = intersection_f(
             pos,
-            dstep / step_size,
+            dir,
             target_x,
             target_r,
             step_size,
         )
 
-        new_pos = cond(isec, lambda _: isec_pos, lambda _: new_pos, None)
+        isec_time = time + jnp.linalg.norm(pos - isec_pos) / c_medium
+
+        new_pos = cond(
+            isec, lambda args: args[0], lambda args: args[1], (isec_pos, new_pos)
+        )
 
         new_time = cond(
             isec,
-            lambda _: time + jnp.linalg.norm(pos - isec_pos) / c_medium,
-            lambda _: new_time,
-            None,
+            lambda args: args[0],
+            lambda args: args[1],
+            (isec_time, new_time),
+        )
+
+        new_dir = cond(
+            isec,
+            lambda args: args[1],
+            lambda args: calc_new_direction(args[0], args[1], scattering_function),
+            (k1, dir),
         )
 
         stepcnt = cond(isec, lambda s: s, lambda s: s + 1, stepcnt)
 
-        return new_pos, new_dir, new_time, k4, isec, isec_pos, stepcnt
+        return new_pos, new_dir, new_time, k2, isec, isec_pos, stepcnt
 
-    def unpack_args(f):
-        def _f(args):
-            return f(*args)
-
-        return _f
-
-    def make_n_steps_until_intersect(key):
-        """
-        Make a function that steps a photon until it either intersects or
-        max length is reached.
-
-        Returns:
-            position: float[3]
-                Final photon position
-            time: float
-                Final photon time
-            direction: float[3]
-                Initial photon direction
-        """
-
-        if mode == "uniform":
-            k1, k2, k3 = random.split(key, 3)
-            theta = jnp.arccos(random.uniform(k1, minval=-1, maxval=1))
-            phi = random.uniform(k2, minval=0, maxval=2 * np.pi)
-            direction = sph_to_cart(theta, phi, r=1)
-        elif mode == "laser":
-            direction = jnp.array([0.0, 0.0, 1.0])
-            key, k3 = random.split(key)
-
-        position = jnp.array(emitter_x)
-        time = emitter_t
-        stepcnt = 0
-        position, _, time, _, isec, isec_pos, stepcnt = while_loop(
-            lambda args: (args[4] == False) & (args[2] < max_time),
-            unpack_args(step),
-            (position, direction, time, k3, False, position, stepcnt),
-        )
-
-        return position, time, direction, isec, isec_pos, stepcnt
-
-    return make_n_steps_until_intersect
+    return step
 
 
-def sph_to_cart(theta, phi=0, r=1):
-    """Transform spherical to cartesian coordinates."""
-    x = r * jnp.sin(theta) * jnp.cos(phi)
-    y = r * jnp.sin(theta) * jnp.sin(phi)
-    z = r * jnp.cos(theta)
+def unpack_args(f):
+    """Wrap a function by unpacking a single argument tuple."""
 
-    return jnp.array([x, y, z])
+    def _f(args):
+        return f(*args)
+
+    return _f
 
 
-def collect_hits(step_function, nphotons, nsims, seed=0):
+def make_photon_trajectory_fun(
+    step_function,
+    emitter_x,
+    emitter_t,
+    max_time,
+    emission_mode="uniform",
+    stepping_mode="until_intersect",
+):
+    """
+    Make a photon trajectory function.
+
+    This function calls the photon step function multiple times until
+    some termination condition is reached (defined by `stepping_mode`)
+
+    max_dist: float
+        Maximum time a photon is tracked
+    emitter_x: float[3]
+        Position vector of the emitter
+    emitter_t: float
+        Emitter time
+    emission_mode: "uniform" or "laser"
+        Emission mode
+    stepping_mode: "until_intersect"
+        Stepping mode
+    """
+    if stepping_mode == "until_intersect":
+
+        def make_n_steps_until_intersect(key):
+            """
+            Make a function that steps a photon until it either intersects or max length is reached.
+
+            Parameters:
+                key: PRNGKey
+
+            Returns:
+                position: float[3]
+                    Final photon position
+                time: float
+                    Final photon time
+                direction: float[3]
+                    Initial photon direction
+            """
+            if emission_mode == "uniform":
+                k1, k2, k3 = random.split(key, 3)
+                theta = jnp.arccos(random.uniform(k1, minval=-1, maxval=1))
+                phi = random.uniform(k2, minval=0, maxval=2 * np.pi)
+                direction = sph_to_cart(theta, phi, r=1)
+            elif emission_mode == "laser":
+                direction = jnp.array([0.0, 0.0, 1.0])
+                key, k3 = random.split(key)
+
+            position = jnp.array(emitter_x)
+            time = emitter_t
+            stepcnt = 0
+            position, _, time, _, isec, isec_pos, stepcnt = while_loop(
+                lambda args: (args[4] == False) & (args[2] < max_time),  # noqa: E712
+                unpack_args(step_function),
+                (position, direction, time, k3, False, position, stepcnt),
+            )
+
+            return position, time, direction, isec, isec_pos, stepcnt
+
+        return make_n_steps_until_intersect
+    else:
+        raise NotImplementedError(f"Stepping mode {stepping_mode} not implemented")
+
+
+def collect_hits(traj_func, nphotons, nsims, seed=0):
     """Run photon prop multiple times and collect hits."""
     key = random.PRNGKey(seed)
     isec_times = []
@@ -300,7 +378,7 @@ def collect_hits(step_function, nphotons, nsims, seed=0):
 
     for i in range(nsims):
         key, subkey = random.split(key)
-        positions, times, directions, isecs, isec_pos, steps = step_function(
+        positions, times, directions, isecs, isec_pos, steps = traj_func(
             random.split(key, num=nphotons)
         )
         isec_times.append(np.asarray(times[isecs]))
