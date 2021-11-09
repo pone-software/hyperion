@@ -128,4 +128,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+*.pkl
 *.pickle
+*.dat
+*.npy
+*.bz2
+*.gz
