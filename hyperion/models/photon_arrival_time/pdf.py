@@ -159,11 +159,7 @@ def fb5_mle(xs, weights, warning="warn"):
         return -(fb8(*x).log_pdf(xs) * weights).sum() / weights.sum()
 
     # first get estimated moments
-    try:
-        k_me = kent_me(xs)
-    except ValueError as e:
-        print(xs)
-        raise e
+    k_me = kent_me(xs)
 
     theta, phi, psi, kappa, beta = k_me.theta, k_me.phi, k_me.psi, k_me.kappa, k_me.beta
 
