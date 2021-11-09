@@ -136,9 +136,13 @@ if __name__ == "__main__":
                 size=min(isec_poss.shape[0], 100000),
                 replace=False,
             )
-            fb5_pars = fb5_mle(
-                isec_poss[idx], totw[idx]
-            )  # use at most 100k data points
+            try:
+                fb5_pars = fb5_mle(
+                    isec_poss[idx], totw[idx]
+                )  # use at most 100k data points
+            except AssertionError:
+                print(isec_poss[idx])
+                continue
 
             fit_results.append(
                 {
