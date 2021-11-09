@@ -1,13 +1,14 @@
 +SingularityImage = "/data/p-one/chaack/container/pytorch-geo.sif"
 executable = /bin/env 
-arguments = python /data/p-one/chaack/hyperion/generate_photons.py -o $(outfile) -d $(dist)
+arguments = python /data/p-one/chaack/hyperion/fit_tres.py -i $(infile) -o $(outfile)
 Requirements = HasSingularity
 request_gpus = 1
 log = logs/log
-output = logs/out.$(cluster)
-error = logs/err.$(cluster)
+output = logs/out_fit.$(CLUSTER)
+error = logs/err_fit.$(CLUSTER)
 
 when_to_transfer_output = on_exit
 should_transfer_files = yes
+transfer_input_files = $(infile)
 queue 1
 
