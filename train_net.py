@@ -2,7 +2,7 @@ from argparse import ArgumentParser
 import pickle
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torch.optim as optim
 import torch.nn as nn
 import torch.nn.functional as F
@@ -11,7 +11,29 @@ from torch.utils.tensorboard import SummaryWriter
 from hyperion.models.photon_arrival_time.net import PhotonArivalTimePars
 
 
+class SimpleDataset(Dataset):
+    """Simple Dataset subclass that returns a tuple (input, output)."""
+
+    def __init__(self, inputs, outputs):
+        super(SimpleDataset, self).__init__()
+        self._inputs = inputs
+        self._outputs = outputs
+
+        if len(self._inputs) != len(self._outputs):
+            raise ValueError("Inputs and outputs must have same length.")
+
+        self._len = len(self._inputs)
+
+    def __getitem__(self, idx):
+        """Return tuple of input, output."""
+        return self._inputs[idx], self._outputs[idx]
+
+    def __len__(self):
+        return self._len
+
+
 def make_funnel(max_neurons, layer_count):
+    """Create a neuron per layer list for a funnel shape."""
     layers = []
     out_feat = 7
     previous = max_neurons
@@ -24,9 +46,13 @@ def make_funnel(max_neurons, layer_count):
     return layers
 
 
-def train_net(conf, train_data, test_data, writer=None):
+def train_param_net(conf, train_data, test_data, writer=None, seed=31337):
+    """Train a funnel shaped MLP."""
+
     g = torch.Generator()
-    g.manual_seed(31337)
+    torch.random.manual_seed(seed)
+    g.manual_seed(seed)
+
     train_loader = DataLoader(
         train_data,
         batch_size=conf["batch_size"],
@@ -45,10 +71,10 @@ def train_net(conf, train_data, test_data, writer=None):
     layers = make_funnel(conf["max_neurons"], conf["layer_count"])
     net = PhotonArivalTimePars(
         layers,
-        2,
-        7,
+        conf["n_in"],
+        conf["n_out"],
         dropout=conf["dropout"],
-        final_activations=[F.softplus] * 6 + [nn.Identity()],
+        final_activations=conf["final_activations"],
     )
     optimizer = optim.Adam(net.parameters(), lr=conf["lr"])
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, conf["epochs"])
@@ -63,34 +89,32 @@ def train_net(conf, train_data, test_data, writer=None):
         for train in train_loader:
             net.train()
             optimizer.zero_grad()
-            inp = train[:, :2]
-            out = train[:, 2:]
+            inp, out = train
             pred = net(inp)
 
             loss = criterion(pred, out)
             loss = loss.sum()
             loss.backward()
 
-            total_train_loss += loss.item() * train.shape[0]
+            total_train_loss += loss.item() * len(train)
 
             optimizer.step()
 
-        total_train_loss /= train_data.shape[0]
+        total_train_loss /= len(train_data)
 
         total_test_loss = 0
         for test in test_loader:
             net.eval()
 
-            inp = test[:, :2]
-            out = test[:, 2:]
+            inp, out = test
             pred = net(inp)
 
             loss = criterion(pred, out)
             loss = loss.sum()
 
-            total_test_loss += loss.item() * test.shape[0]
+            total_test_loss += loss.item() * len(test)
 
-        total_test_loss /= test_data.shape[0]
+        total_test_loss /= len(test_data)
 
         if writer is not None:
             writer.add_scalar("Loss/train", total_train_loss, epoch)
@@ -128,17 +152,21 @@ if __name__ == "__main__":
     fit_results = pickle.load(open(args.infile, "rb"))
     data = []
     for d in fit_results:
-        data.append(list(d["input"]) + list(d["output"]))
+        data.append(
+            list(d["input"]) + list(d["output_tres"]) + list(d["output_arrv_pos"])
+        )
     data = np.asarray(np.vstack(data).squeeze(), dtype=np.float32)
     data[:, [2, 3, 4]] = np.sort(data[:, [2, 3, 4]], axis=1)
     data[:, 1] = np.log10(data[:, 1])
-    data[:, -1] = np.log10(data[:, -1])
-    data[:, -2] = -np.log10(1 - data[:, -2])
+    data[:, 8] = np.log10(data[:, 8] * 300 * 1e7)
+    data[:, 7] = -np.log10(1 - data[:, 7])
 
     rstate = np.random.RandomState(0)
     indices = np.arange(len(data))
     rstate.shuffle(indices)
-    data_shuff = data[indices]
+    columns = list(range(9)) + [12, 13]
+
+    data_shuff = data[indices][:, columns]
 
     split = int(0.5 * len(data))
 
@@ -147,10 +175,12 @@ if __name__ == "__main__":
     train_data = torch.tensor(data_shuff[:split])
     test_data = torch.tensor(data_shuff[split:])
 
-    max_neurons = 700
+    train_dataset = SimpleDataset(train_data[:, :2], train_data[:, 2:])
+    test_dataset = SimpleDataset(test_data[:, :2], test_data[:, 2:])
 
+    max_neurons = 700
     layer_count = 3
-    layers = make_funnel(max_neurons, layer_count)
+
     conf = {
         "epochs": 1000,
         "batch_size": 500,
@@ -158,8 +188,12 @@ if __name__ == "__main__":
         "dropout": 0.5,
         "max_neurons": max_neurons,
         "layer_count": layer_count,
+        "n_in": 2,
+        "n_out": train_data.shape[1],
+        "final_activations": [F.softplus] * 6 + [nn.Identity()] + [F.softplus] * 2,
     }
+
     writer = SummaryWriter(
         f"/tmp/tensorboard/runs/{conf['layer_count']}_{conf['max_neurons']}_{conf['batch_size']}_{conf['lr']}_{conf['epochs']}"
     )
-    net = train_net(conf, train_data, test_data, writer)
+    net = train_param_net(conf, train_dataset, test_dataset, writer)

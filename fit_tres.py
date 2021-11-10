@@ -84,6 +84,19 @@ if __name__ == "__main__":
         required=True,
         dest="medium",
     )
+    parser.add_argument(
+        "-s",
+        "--seed",
+        type=int,
+        required=True,
+        dest="seed",
+    )
+    parser.add_argument(
+        "--n-thetas",
+        type=int,
+        default=100,
+        dest="n_thetas",
+    )
     args = parser.parse_args()
 
     medium = json.load(open(args.medium))
@@ -92,19 +105,19 @@ if __name__ == "__main__":
     det_ph = pickle.load(open(args.infile, "rb"))
 
     fit_results = []
-    rstate = np.random.RandomState(0)
+    rstate = np.random.RandomState(args.seed)
 
     pdf = make_exp_exp_exp()
 
     for i in trange(len(det_ph)):
-        thetas = np.arccos(rstate.uniform(-1, 1, 100))
+        thetas = np.arccos(rstate.uniform(-1, 1, args.n_thetas))
         thetas = np.concatenate(
             [
                 thetas,
                 [
-                    np.arccos(1 / 1.35) - 0.01,
-                    np.arccos(1 / 1.35),
-                    np.arccos(1 / 1.35) + 0.01,
+                    np.arccos(1 / medium["n_ph"]) - 0.01,
+                    np.arccos(1 / medium["n_ph"]),
+                    np.arccos(1 / medium["n_ph"]) + 0.01,
                 ],
             ]
         )
