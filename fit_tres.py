@@ -131,7 +131,7 @@ if __name__ == "__main__":
                 det_dist,
                 det_radius=args.det_radius,
                 c_medium=c_medium,
-                thr=2,
+                thr=1,
             )
             obj = make_obj_func(pdf, t, w, 5)
             best_res = fit(wrap_obj_func(obj))
