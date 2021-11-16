@@ -367,7 +367,7 @@ def make_photon_trajectory_fun(
         raise NotImplementedError(f"Stepping mode {stepping_mode} not implemented")
 
 
-def collect_hits(traj_func, nphotons, nsims, seed=0):
+def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=50e6):
     """Run photon prop multiple times and collect hits."""
     key = random.PRNGKey(seed)
     isec_times = []
@@ -375,6 +375,9 @@ def collect_hits(traj_func, nphotons, nsims, seed=0):
     stepss = []
     nphotons = int(nphotons)
     isec_poss = []
+
+    total_detected_photons = 0
+    sims_cnt = 0
 
     for i in range(nsims):
         key, subkey = random.split(key)
@@ -386,9 +389,14 @@ def collect_hits(traj_func, nphotons, nsims, seed=0):
         ph_thetas.append(np.asarray(jnp.arccos(directions[isecs, 2])))
         isec_poss.append(np.asarray(isec_pos[isecs]))
 
+        sims_cnt = i
+        total_detected_photons += jnp.sum(isecs)
+        if sim_limit is not None and total_detected_photons > sim_limit:
+            break
+
     isec_times = np.concatenate(isec_times)
     ph_thetas = np.concatenate(ph_thetas)
     stepss = np.concatenate(stepss)
     isec_poss = np.vstack(isec_poss)
 
-    return isec_times, ph_thetas, stepss, isec_poss
+    return isec_times, ph_thetas, stepss, isec_poss, sims_cnt

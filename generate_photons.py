@@ -25,7 +25,7 @@ parser.add_argument(
     "--photons_per_batch", type=float, required=False, dest="ph_per_batch", default=1e7
 )
 parser.add_argument(
-    "--n_photon_batches", type=int, required=False, dest="n_ph_batches", default=300
+    "--n_photon_batches", type=int, required=False, dest="n_ph_batches", default=1000
 )
 parser.add_argument(
     "--max_dist", type=float, required=False, dest="max_dist", default=500
@@ -56,6 +56,8 @@ emitter_t = 0.0
 emitter_dir = jnp.array([0, 0, 1.0])
 
 if args.dist is None:
+    # Use quasi-random numbers to select random distances with optimal coverage
+    # in log space.
     sampler = qmc.Sobol(d=1, scramble=False)
     sample = sampler.random_base2(m=1)
     dists = (
@@ -90,10 +92,19 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
     )
     trajec_fun_v = jit(vmap(trajec_fun, in_axes=[0]))
 
-    times, emission_angles, steps, positions = collect_hits(
+    times, emission_angles, steps, positions, sims_cnt = collect_hits(
         trajec_fun_v, args.ph_per_batch, args.n_ph_batches, args.seed
     )
-    all_data.append([det_dist, times, emission_angles, steps, positions])
+    all_data.append(
+        {
+            "dist": det_dist,
+            "times_det": times,
+            "emission_angles": emission_angles,
+            "photon_steps": steps,
+            "positions_det": positions,
+            "nphotons_sim": sims_cnt * args.ph_per_batch,
+        }
+    )
 
 
 with open(args.outfile, "wb") as outfile:

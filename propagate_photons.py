@@ -17,7 +17,7 @@ c_medium = 0.299792458 / medium["n_ph"]
 emitter_x = jnp.array([0, 0, 0.0])
 emitter_t = 0.0
 
-# Define detector position & sensor radius (sensor is modelles as a sphere)
+# Define detector position & sensor radius (sensor is modelled as a sphere)
 det_pos = jnp.array([0, 0, 100.0])
 det_radius = 0.21
 

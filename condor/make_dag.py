@@ -9,7 +9,9 @@ dists = (10 ** qmc.scale(sample, 0, np.log10(500))).squeeze()
 with open("generate_photons.dag", "w") as hdl:
     for i, dist in enumerate(dists):
         hdl.write(f"JOB {i}_photons submit_photons.sub\n")
-        hdl.write(f'VARS {i}_photons dist="{dist}" outfile="photon_table_{i}.pickle"\n')
+        hdl.write(
+            f'VARS {i}_photons dist="{dist}" outfile="photon_table_{i}.pickle" seed="{i}"\n'
+        )
 
         hdl.write(f"JOB {i}_fit submit_fit.sub\n")
         hdl.write(
