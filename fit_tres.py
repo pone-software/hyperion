@@ -1,20 +1,18 @@
 """Script for fitting time residual distributions."""
-import scipy.optimize
-import numpy as np
-from tqdm import tqdm, trange
+import json
 import pickle
 from argparse import ArgumentParser
+
+import numpy as np
+import scipy.optimize
 from jax.config import config
-import json
+from tqdm import tqdm, trange
 
 config.update("jax_enable_x64", True)
 
-from hyperion.models.photon_arrival_time.pdf import (  # noqa: E402
-    make_exp_exp_exp,
-    make_obj_func,
-    fb5_mle,
-)
-from hyperion.utils import cherenkov_ang_dist, ANG_DIST_INT, calc_tres  # noqa: E402
+from hyperion.models.photon_arrival_time.pdf import fb5_mle  # noqa: E402
+from hyperion.models.photon_arrival_time.pdf import make_exp_exp_exp, make_obj_func
+from hyperion.utils import ANG_DIST_INT, calc_tres, cherenkov_ang_dist  # noqa: E402
 
 
 def make_data(t, w, det_dist, det_radius, c_medium, thr=2):
@@ -121,7 +119,15 @@ if __name__ == "__main__":
                 ],
             ]
         )
-        det_dist, isec_times, ph_thetas, stepss, isec_poss = det_ph[i]
+
+        sim_data = det_ph[i]
+        det_dist = sim_data["dist"]
+        isec_times = sim_data["times_det"]
+        ph_thetas = sim_data["emission_angles"]
+        stepss = sim_data["photon_steps"]
+        isec_poss = sim_data["positions_det"]
+        nphotons_sim = sim_data["nphotons_sim"]
+
         weights = np.exp(-isec_times * c_medium / medium["abs_len"])
         for theta in tqdm(thetas, total=len(thetas), leave=False):
             c_weight = cherenkov_ang_dist(np.cos(ph_thetas - theta)) / ANG_DIST_INT * 2
@@ -141,6 +147,8 @@ if __name__ == "__main__":
                 continue
             totw = weights * c_weight
             nph_total = totw.sum()
+
+            detected_fraction = nph_total / nphotons_sim
 
             # Calculate photon arrival coordinates relative to module center
             det_center = np.asarray([0, 0, det_dist])
@@ -163,7 +171,7 @@ if __name__ == "__main__":
             fit_results.append(
                 {
                     "input": [theta, det_dist],
-                    "output_tres": list(best_res[0]) + [ucf, nph_total],
+                    "output_tres": list(best_res[0]) + [ucf, detected_fraction],
                     "output_arrv_pos": fb5_pars,
                 }
             )

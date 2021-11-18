@@ -134,3 +134,4 @@ dmypy.json
 *.npy
 *.bz2
 *.gz
+/figures

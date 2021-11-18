@@ -45,24 +45,33 @@ if __name__ == "__main__":
     c_medium = 0.299792458 / medium["n_ph"]
 
     det_ph = pickle.load(open(args.infile, "rb"))
-    det_dist, isec_times, ph_thetas, stepss, isec_poss = det_ph[0]
-
-    rstate = np.random.RandomState(args.seed)
-
-    obs_angs = np.arccos(rstate.uniform(-1, 1, size=args.n_thetas))
-    tres = calc_tres(isec_times, 0.21, det_dist, c_medium)
-    if args.tts > 0:
-        tres += rstate.normal(0, scale=args.tts, size=tres.shape[0])
-    weights = np.exp(-isec_times * c_medium / medium["abs_len"])
-
     hists = []
     inp_data = []
 
-    for obs in obs_angs:
-        c_weight = cherenkov_ang_dist(np.cos(ph_thetas - obs)) / ANG_DIST_INT * 2
-        tot_weight = weights * c_weight
-        hist, _ = np.histogram(tres, weights=tot_weight, bins=np.linspace(0, 500, 500))
-        hists.append(hist)
-        inp_data.append([obs, det_dist])
+    for i in range(len(det_ph)):
+        sim_data = det_ph[i]
+        det_dist = sim_data["dist"]
+        isec_times = sim_data["times_det"]
+        ph_thetas = sim_data["emission_angles"]
+        stepss = sim_data["photon_steps"]
+        isec_poss = sim_data["positions_det"]
+        nphotons_sim = sim_data["nphotons_sim"]
+
+        rstate = np.random.RandomState(args.seed)
+
+        obs_angs = np.arccos(rstate.uniform(-1, 1, size=args.n_thetas))
+        tres = calc_tres(isec_times, 0.21, det_dist, c_medium)
+        if args.tts > 0:
+            tres += rstate.normal(0, scale=args.tts, size=tres.shape[0])
+        weights = np.exp(-isec_times * c_medium / medium["abs_len"])
+
+        for obs in obs_angs:
+            c_weight = cherenkov_ang_dist(np.cos(ph_thetas - obs)) / ANG_DIST_INT * 2
+            tot_weight = weights * c_weight / nphotons_sim
+            hist, _ = np.histogram(
+                tres, weights=tot_weight, bins=np.linspace(0, 500, 500)
+            )
+            hists.append(hist)
+            inp_data.append([obs, det_dist])
 
     pickle.dump([inp_data, hists], open(args.outfile, "wb"))
