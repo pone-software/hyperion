@@ -69,7 +69,7 @@ if __name__ == "__main__":
             c_weight = cherenkov_ang_dist(np.cos(ph_thetas - obs)) / ANG_DIST_INT * 2
             tot_weight = weights * c_weight / nphotons_sim
             hist, _ = np.histogram(
-                tres, weights=tot_weight, bins=np.linspace(0, 500, 500)
+                tres, weights=tot_weight, bins=np.linspace(-30, 500, 530)
             )
             hists.append(hist)
             inp_data.append([obs, det_dist])
