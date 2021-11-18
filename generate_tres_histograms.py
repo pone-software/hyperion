@@ -1,9 +1,9 @@
-import numpy as np
-import pickle
 import json
+import pickle
 from argparse import ArgumentParser
-from hyperion.utils import cherenkov_ang_dist, ANG_DIST_INT, calc_tres
 
+import numpy as np
+from hyperion.utils import ANG_DIST_INT, calc_tres, cherenkov_ang_dist
 
 if __name__ == "__main__":
 
@@ -33,6 +33,12 @@ if __name__ == "__main__":
         default=100,
         dest="n_thetas",
     )
+    parser.add_argument(
+        "--tts",
+        type=float,
+        default=2,
+        dest="tts",
+    )
     args = parser.parse_args()
 
     medium = json.load(open(args.medium))
@@ -45,6 +51,8 @@ if __name__ == "__main__":
 
     obs_angs = np.arccos(rstate.uniform(-1, 1, size=args.n_thetas))
     tres = calc_tres(isec_times, 0.21, det_dist, c_medium)
+    if args.tts > 0:
+        tres += rstate.normal(0, scale=args.tts, size=tres.shape[0])
     weights = np.exp(-isec_times * c_medium / medium["abs_len"])
 
     hists = []
