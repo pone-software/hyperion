@@ -1,6 +1,6 @@
 +SingularityImage = "/data/p-one/chaack/container/pytorch-geo.sif"
 executable = /bin/env
-arguments = python /data/p-one/chaack/hyperion/generate_photons.py -o $(outfile) -d $(dist) -s $(seed)
+arguments = python /data/p-one/chaack/hyperion/generate_photons.py -o $(outfile) -d $(dist) -s $(seed) -r 0.21 -m /data/p-one/chaack/hyperion//data/p-one/chaack/hyperion/hyperion/resources/medium.json
 Requirements = HasSingularity
 request_gpus = 1
 log = logs/log
