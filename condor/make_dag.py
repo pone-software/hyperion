@@ -28,7 +28,8 @@ with open("generate_photons_second.dag", "w") as hdl:
 
 with open("generate_photons_third.dag", "w") as hdl:
     for i, dist in enumerate(dists):
-        hdl.write(f"JOB {i}_fit submit_hists.sub\n")
-        hdl.write(
-            f'VARS {i}_fit infile="photon_table_{i}.pickle" outfile="photon_hists_{i}.pickle" seed="{i}"\n'
-        )
+        for tts in [0, 2, 3, 4]:
+            hdl.write(f"JOB {i}_hist_{tts} submit_hists.sub\n")
+            hdl.write(
+                f'VARS {i}_hist_{tts} infile="photon_table_{i}.pickle" outfile="photon_hists_{i}_{tts}.pickle" seed="{i}" tts="{tts}"\n'
+            )
