@@ -70,9 +70,6 @@ if __name__ == "__main__":
             tres += rstate.normal(0, scale=args.tts, size=tres.shape[0])
         """
 
-        if args.tts > 0:
-            dist = scipy.stats.norm(tres, args.tts)
-
         weights = np.exp(-isec_times * c_medium / medium["abs_len"])
 
         for obs in obs_angs:
@@ -80,7 +77,16 @@ if __name__ == "__main__":
             tot_weight = weights * c_weight / nphotons_sim
 
             if args.tts > 0:
-                eval_cdf = (dist.cdf(binning[:, np.newaxis]) * tot_weight).sum(axis=1)
+                split_len = 1e6
+                splits = np.ceil(len(tres) / split_len)
+
+                eval_cdf = 0
+                for nsplit in range(splits):
+                    this_slice = slice(nsplit * split_len, (nsplit + 1) * split_len)
+                    dist = scipy.stats.norm(tres[this_slice], args.tts)
+                    eval_cdf += (
+                        dist.cdf(binning[:, np.newaxis]) * tot_weight[this_slice]
+                    ).sum(axis=1)
                 hist = eval_cdf.diff()
             else:
 
