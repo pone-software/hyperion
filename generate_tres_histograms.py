@@ -78,7 +78,7 @@ if __name__ == "__main__":
 
             if args.tts > 0:
                 split_len = 1e6
-                splits = np.ceil(len(tres) / split_len)
+                splits = int(np.ceil(len(tres) / split_len))
 
                 eval_cdf = 0
                 for nsplit in range(splits):
