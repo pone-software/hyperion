@@ -79,7 +79,6 @@ if __name__ == "__main__":
             if args.tts > 0:
                 split_len = int(1e5)
                 splits = int(np.ceil(len(tres) / split_len))
-                print(splits)
                 eval_cdf = 0
                 for nsplit in range(splits):
                     this_slice = slice(nsplit * split_len, (nsplit + 1) * split_len)
@@ -87,7 +86,7 @@ if __name__ == "__main__":
                     eval_cdf += (
                         dist.cdf(binning[:, np.newaxis]) * tot_weight[this_slice]
                     ).sum(axis=1)
-                hist = eval_cdf.diff()
+                hist = np.diff(eval_cdf)
             else:
 
                 hist, _ = np.histogram(tres, weights=tot_weight, bins=binning)
