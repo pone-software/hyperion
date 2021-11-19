@@ -3,6 +3,7 @@ import pickle
 from argparse import ArgumentParser
 
 import numpy as np
+import scipy.stats
 from hyperion.utils import ANG_DIST_INT, calc_tres, cherenkov_ang_dist
 
 if __name__ == "__main__":
@@ -48,6 +49,8 @@ if __name__ == "__main__":
     hists = []
     inp_data = []
 
+    binning = np.linspace(-30, 500, 530)
+
     for i in range(len(det_ph)):
         sim_data = det_ph[i]
         det_dist = sim_data["dist"]
@@ -61,16 +64,27 @@ if __name__ == "__main__":
 
         obs_angs = np.arccos(rstate.uniform(-1, 1, size=args.n_thetas))
         tres = calc_tres(isec_times, 0.21, det_dist, c_medium)
+
+        """
         if args.tts > 0:
             tres += rstate.normal(0, scale=args.tts, size=tres.shape[0])
+        """
+
+        if args.tts > 0:
+            dist = scipy.stats.norm(tres, args.tts)
+
         weights = np.exp(-isec_times * c_medium / medium["abs_len"])
 
         for obs in obs_angs:
             c_weight = cherenkov_ang_dist(np.cos(ph_thetas - obs)) / ANG_DIST_INT * 2
             tot_weight = weights * c_weight / nphotons_sim
-            hist, _ = np.histogram(
-                tres, weights=tot_weight, bins=np.linspace(-30, 500, 530)
-            )
+
+            if args.tts > 0:
+                eval_cdf = (dist.cdf(binning[:, np.newaxis]) * tot_weight).sum(axis=1)
+                hist = eval_cdf.diff()
+            else:
+
+                hist, _ = np.histogram(tres, weights=tot_weight, bins=binning)
             hists.append(hist)
             inp_data.append([obs, det_dist])
 
