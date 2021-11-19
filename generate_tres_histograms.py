@@ -77,16 +77,15 @@ if __name__ == "__main__":
             tot_weight = weights * c_weight / nphotons_sim
 
             if args.tts > 0:
-                split_len = 1e6
+                split_len = int(1e6)
                 splits = int(np.ceil(len(tres) / split_len))
 
                 eval_cdf = 0
                 for nsplit in range(splits):
-                    sl_low = nsplit * split_len
-                    sl_high = (nsplit + 1) * split_len
-                    dist = scipy.stats.norm(tres[sl_low:sl_high], args.tts)
+                    this_slice = slice(nsplit * split_len, (nsplit + 1) * split_len)
+                    dist = scipy.stats.norm(tres[this_slice], args.tts)
                     eval_cdf += (
-                        dist.cdf(binning[:, np.newaxis]) * tot_weight[sl_low:sl_high]
+                        dist.cdf(binning[:, np.newaxis]) * tot_weight[this_slice]
                     ).sum(axis=1)
                 hist = eval_cdf.diff()
             else:
