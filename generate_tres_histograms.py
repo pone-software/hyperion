@@ -77,9 +77,9 @@ if __name__ == "__main__":
             tot_weight = weights * c_weight / nphotons_sim
 
             if args.tts > 0:
-                split_len = int(1e6)
+                split_len = int(1e5)
                 splits = int(np.ceil(len(tres) / split_len))
-
+                print(splits)
                 eval_cdf = 0
                 for nsplit in range(splits):
                     this_slice = slice(nsplit * split_len, (nsplit + 1) * split_len)
