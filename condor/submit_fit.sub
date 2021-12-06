@@ -1,6 +1,6 @@
 +SingularityImage = "/data/p-one/chaack/container/pytorch-geo.sif"
 executable = /bin/env
-arguments = python /data/p-one/chaack/hyperion/fit_tres.py -i $(infile) -o $(outfile) -r 0.21 -m /data/p-one/chaack/hyperion/hyperion/resources/medium.json -s $(seed) --n-thetas 150
+arguments = python /data/p-one/chaack/hyperion/fit_tres.py -i $(infile) -o $(outfile) -r 0.21 -s $(seed) --n-thetas 150
 Requirements = HasSingularity
 request_gpus = 0
 log = logs/log

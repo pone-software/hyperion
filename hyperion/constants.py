@@ -9,3 +9,8 @@ class Constants(object):
             b = -6.02527
             c = 0.29887
             d = -0.00103
+
+    class BaseConstants(object):
+        c_vac = 2.99792458e8  # m/s
+        e = 1.60217662e-19  # Coulomb
+        h = 6.62607015e-34  # Js

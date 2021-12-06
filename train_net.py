@@ -96,7 +96,7 @@ def train_param_net(conf, train_data, test_data, writer=None, seed=31337):
             loss = loss.sum()
             loss.backward()
 
-            total_train_loss += loss.item() * len(train)
+            total_train_loss += loss.item() * inp.shape[0]
 
             optimizer.step()
 
@@ -112,7 +112,7 @@ def train_param_net(conf, train_data, test_data, writer=None, seed=31337):
             loss = criterion(pred, out)
             loss = loss.sum()
 
-            total_test_loss += loss.item() * len(test)
+            total_test_loss += loss.item() * inp.shape[0]
 
         total_test_loss /= len(test_data)
 
@@ -123,9 +123,9 @@ def train_param_net(conf, train_data, test_data, writer=None, seed=31337):
 
         scheduler.step()
 
+    """
     net.eval()
-    inp = test_data[:, :2]
-    out = test_data[:, 2:]
+    inp, out = test_data[:]
     pred = net(inp)
     loss = criterion(pred, out)
     loss = loss.sum()
@@ -136,6 +136,7 @@ def train_param_net(conf, train_data, test_data, writer=None, seed=31337):
         writer.add_hparams(hparam_dict, {"hparam/accuracy": loss})
         writer.flush()
         writer.close()
+    """
 
     return net
 
@@ -146,10 +147,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "-i", help="arrival time fit parameters file", required=True, dest="infile"
     )
+    parser.add_argument("-o", help="model output file", required=True, dest="outfile")
 
     args = parser.parse_args()
 
     fit_results = pickle.load(open(args.infile, "rb"))
+
     data = []
     for d in fit_results:
         data.append(
@@ -158,7 +161,7 @@ if __name__ == "__main__":
     data = np.asarray(np.vstack(data).squeeze(), dtype=np.float32)
     data[:, [2, 3, 4]] = np.sort(data[:, [2, 3, 4]], axis=1)
     data[:, 1] = np.log10(data[:, 1])
-    data[:, 8] = np.log10(data[:, 8] * 300 * 1e7)
+    data[:, 8] = np.log10(data[:, 8])
     data[:, 7] = -np.log10(1 - data[:, 7])
 
     rstate = np.random.RandomState(0)
@@ -178,14 +181,14 @@ if __name__ == "__main__":
     train_dataset = SimpleDataset(train_data[:, :2], train_data[:, 2:])
     test_dataset = SimpleDataset(test_data[:, :2], test_data[:, 2:])
 
-    max_neurons = 700
+    max_neurons = 800
     layer_count = 3
 
     conf = {
         "epochs": 1000,
-        "batch_size": 500,
+        "batch_size": 400,
         "lr": 0.01,
-        "dropout": 0.5,
+        "dropout": 0.3,
         "max_neurons": max_neurons,
         "layer_count": layer_count,
         "n_in": 2,
@@ -194,6 +197,7 @@ if __name__ == "__main__":
     }
 
     writer = SummaryWriter(
-        f"/tmp/tensorboard/runs/{conf['layer_count']}_{conf['max_neurons']}_{conf['batch_size']}_{conf['lr']}_{conf['epochs']}"
+        f"/tmp/tensorboard/runs/{conf['layer_count']}_{conf['max_neurons']}_{conf['batch_size']}_{conf['lr']}_{conf['epochs']}_{conf['dropout']}"
     )
     net = train_param_net(conf, train_dataset, test_dataset, writer)
+    torch.save(net, args.outfile)

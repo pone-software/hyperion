@@ -1,19 +1,26 @@
 """Generate photons for a range of emitter-reciever distances."""
-import jax.numpy as jnp
-from jax import jit, vmap
-from hyperion.propagate import (
-    photon_sphere_intersection,
-    mixed_hg_rayleigh_antares,
-    make_step_function,
-    make_photon_trajectory_fun,
-    collect_hits,
-)
-from tqdm import tqdm
-from scipy.stats import qmc
-import numpy as np
 import pickle
 from argparse import ArgumentParser
-import json
+
+import jax.numpy as jnp
+import numpy as np
+from hyperion.propagate import (
+    cascadia_ref_index_func,
+    collect_hits,
+    initialize_direction_isotropic,
+    make_cherenkov_spectral_sampling_func,
+    make_fixed_pos_time_initializer,
+    make_loop_for_n_steps,
+    make_photon_sphere_intersection_func,
+    make_photon_trajectory_fun,
+    make_step_function,
+    mixed_hg_rayleigh_antares,
+    sca_len_func_antares,
+)
+from hyperiorn.utils import calculate_min_number_steps
+from jax import jit, vmap
+from scipy.stats import qmc
+from tqdm import tqdm
 
 parser = ArgumentParser()
 parser.add_argument("-o", "--outfile", required=True, dest="outfile")
@@ -36,24 +43,21 @@ parser.add_argument(
 parser.add_argument(
     "-r", "--det-radius", type=float, required=True, dest="det_radius", default=None
 )
-parser.add_argument(
-    "-m",
-    "--medium-file",
-    type=str,
-    required=True,
-    dest="medium",
-)
 args = parser.parse_args()
 
-medium = json.load(open(args.medium))
-c_medium = 0.299792458 / medium["n_ph"]
 
 outfile = open(args.outfile, "wb")
 outfile.close()
 
 emitter_x = jnp.array([0, 0, 0.0])
 emitter_t = 0.0
-emitter_dir = jnp.array([0, 0, 1.0])
+
+wavelength_init = make_cherenkov_spectral_sampling_func(
+    [300, 700], cascadia_ref_index_func
+)
+photon_init = make_fixed_pos_time_initializer(
+    emitter_x, emitter_t, initialize_direction_isotropic, wavelength_init
+)
 
 if args.dist is None:
     # Use quasi-random numbers to select random distances with optimal coverage
@@ -71,24 +75,25 @@ all_data = []
 for det_dist in tqdm(dists, total=len(dists), disable=True):
     det_pos = jnp.array([0, 0, det_dist])
 
+    intersection_f = make_photon_sphere_intersection_func(det_pos, args.det_radius)
+
     step_fun = make_step_function(
-        1 / medium["sca_len"],
-        c_medium,
-        det_pos,
-        args.det_radius,
-        intersection_f=photon_sphere_intersection,
+        intersection_f=intersection_f,
         scattering_function=mixed_hg_rayleigh_antares,
+        scattering_length_function=sca_len_func_antares,
+        ref_index_func=cascadia_ref_index_func,
     )
 
-    max_time = jnp.linalg.norm(emitter_x - det_pos) / c_medium + 1000
+    n_steps = calculate_min_number_steps(
+        cascadia_ref_index_func, sca_len_func_antares, det_dist, 500, 300, 0.01
+    )
+
+    loop_func = make_loop_for_n_steps(n_steps)
 
     trajec_fun = make_photon_trajectory_fun(
         step_fun,
-        emitter_x,
-        emitter_t,
-        max_time,
-        emission_mode="uniform",
-        stepping_mode="until_intersect",
+        photon_init,
+        loop_func=loop_func,
     )
     trajec_fun_v = jit(vmap(trajec_fun, in_axes=[0]))
 

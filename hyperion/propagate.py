@@ -1,9 +1,14 @@
 """Implementation of the photon propagation code."""
-import jax.numpy as jnp
-from jax import random
-from jax.lax import cond, while_loop
-import numpy as np
+import functools
+
 import jax
+import jax.numpy as jnp
+import numpy as np
+from jax import random
+from jax.lax import cond, fori_loop, while_loop
+from scipy.integrate import quad
+
+from .constants import Constants
 
 
 def sph_to_cart(theta, phi=0, r=1):
@@ -15,42 +20,51 @@ def sph_to_cart(theta, phi=0, r=1):
     return jnp.array([x, y, z])
 
 
-def photon_sphere_intersection(photon_x, photon_p, target_x, target_r, step_size):
+def make_photon_sphere_intersection_func(target_x, target_r):
     """
-    Intersection of a line with a sphere.
-
-    Given a photon origin, a photon direction, a step size, a target location and a target radius,
-    calculate whether the photon intersects the target and the intrsection point.
+    Make a function that calculates the intersection of a photon path with a sphere.
 
     Parameters:
-        photon_x: float[3]
-        photon_p: float[3]
         target_x: float[3]
         target_r: float
-        step_size: float
-
-    Returns:
-        tuple(bool, float[3])
-            True and intersection position if intersected.
     """
-    p_normed = photon_p  # assume normed
 
-    a = jnp.dot(p_normed, (photon_x - target_x))
-    b = a ** 2 - (jnp.linalg.norm(photon_x - target_x) ** 2 - target_r ** 2)
-    # Distance of of the intersection point along the line
-    d = -a - jnp.sqrt(b)
+    def photon_sphere_intersection(photon_x, photon_p, step_size):
+        """
+        Calculate intersection.
 
-    isected = (b >= 0) & (d > 0) & (d < step_size)
+        Given a photon origin, a photon direction, a step size, a target location and a target radius,
+        calculate whether the photon intersects the target and the intrsection point.
 
-    # need to check intersection here, otherwise nan-gradients (sqrt(b) if b < 0)
-    result = cond(
-        isected,
-        lambda _: (True, photon_x + d * p_normed),
-        lambda _: (False, jnp.ones(3) * 1e8),
-        0,
-    )
+        Parameters:
+            photon_x: float[3]
+            photon_p: float[3]
+            step_size: float
 
-    return result
+        Returns:
+            tuple(bool, float[3])
+                True and intersection position if intersected.
+        """
+        p_normed = photon_p  # assume normed
+
+        a = jnp.dot(p_normed, (photon_x - target_x))
+        b = a ** 2 - (jnp.linalg.norm(photon_x - target_x) ** 2 - target_r ** 2)
+        # Distance of of the intersection point along the line
+        d = -a - jnp.sqrt(b)
+
+        isected = (b >= 0) & (d > 0) & (d < step_size)
+
+        # need to check intersection here, otherwise nan-gradients (sqrt(b) if b < 0)
+        result = cond(
+            isected,
+            lambda _: (True, photon_x + d * p_normed),
+            lambda _: (False, jnp.ones(3) * 1e8),
+            0,
+        )
+
+        return result
+
+    return photon_sphere_intersection
 
 
 def photon_plane_intersection(photon_x, photon_p, target_x, target_r, step_size):
@@ -164,6 +178,119 @@ mixed_hg_liu_icecube = make_mixed_scattering_func(
 )
 
 
+def make_wl_dep_sca_len_func(vol_conc_small_part, vol_conc_large_part):
+    """Make a function that calculates the scattering length based on particle concentrations."""
+
+    def sca_len(wavelength):
+        ref_wlen = 550  # nm
+        x = ref_wlen / wavelength
+
+        sca_coeff = (
+            0.0017 * jnp.power(x, 4.3)
+            + 1.34 * vol_conc_small_part * jnp.power(x, 1.7)
+            + 0.312 * vol_conc_large_part * jnp.power(x, 0.3)
+        )
+
+        return 1 / sca_coeff
+
+    return sca_len
+
+
+sca_len_func_antares = make_wl_dep_sca_len_func(0.0075e-6, 0.0075e-6)
+
+
+def make_ref_index_func(salinity, temperature, pressure):
+    """
+    Make function that returns refractive index as function of wavelength.
+
+    Parameters:
+        salinity: float
+            Salinity in parts per thousand
+        temperature: float
+            Temperature in C
+        pressure: float
+            Pressure in bar
+    """
+    n0 = 1.31405
+    n1 = 1.45e-5
+    n2 = 1.779e-4
+    n3 = 1.05e-6
+    n4 = 1.6e-8
+    n5 = 2.02e-6
+    n6 = 15.868
+    n7 = 0.01155
+    n8 = 0.00423
+    n9 = 4382
+    n10 = 1.1455e6
+
+    a01 = (
+        n0
+        + (n2 - n3 * temperature + n4 * temperature * temperature) * salinity
+        - n5 * temperature * temperature
+        + n1 * pressure
+    )
+    a2 = n6 + n7 * salinity - n8 * temperature
+    a3 = -n9
+    a4 = n10
+
+    def ref_index_func(wavelength):
+
+        x = 1 / wavelength
+        return a01 + x * (a2 + x * (a3 + x * a4))
+
+    return ref_index_func
+
+
+antares_ref_index_func = make_ref_index_func(
+    pressure=215.82225 / 1.01325, temperature=13.1, salinity=38.44
+)
+
+cascadia_ref_index_func = make_ref_index_func(
+    pressure=269.44088 / 1.01325, temperature=1.8, salinity=34.82
+)
+
+
+def frank_tamm(wavelength, ref_index_func):
+    """Frank Tamm Formula."""
+    return (
+        4
+        * np.pi ** 2
+        * Constants.BaseConstants.e ** 2
+        / (
+            Constants.BaseConstants.h
+            * Constants.BaseConstants.c_vac
+            * (wavelength / 1e9) ** 2
+        )
+        * (1 - 1 / ref_index_func(wavelength) ** 2)
+    )
+
+
+def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func):
+    """
+    Make a sampling function that samples from the Frank-Tamm formula in a given wavelength range.
+
+    Parameters:
+        wl_range: Tuple
+            lower and upper wavelength range
+        ref_index_func: function
+            Function returning wavelength dependent refractive index
+
+    """
+    wls = np.linspace(wl_range[0], wl_range[1], 1000)
+
+    integral = lambda upper: quad(  # noqa E731
+        functools.partial(frank_tamm, ref_index_func=ref_index_func), wl_range[0], upper
+    )[0]
+    norm = integral(wl_range[-1])
+    poly_pars = np.polyfit(np.vectorize(integral)(wls) / norm, wls, 10)
+
+    def sampling_func(rng_key):
+        uni = random.uniform(rng_key)
+        return jnp.polyval(poly_pars, uni)
+
+    return sampling_func
+
+
 def calc_new_direction(key, old_dir, scattering_function):
     """
     Calculate new direction after sampling a scattering angle.
@@ -219,36 +346,46 @@ def calc_new_direction(key, old_dir, scattering_function):
 
 
 def make_step_function(
-    sca_coeff,
-    c_medium,
-    target_x,
-    target_r,
-    intersection_f=photon_sphere_intersection,
-    scattering_function=mixed_hg_rayleigh_antares,
+    intersection_f,
+    scattering_function,
+    scattering_length_function,
+    ref_index_func,
 ):
     """
     Make a photon step function object.
 
+    Returns a function f(photon_state, key) that performs a photon step
+    and returns the new photon state.
+
     Parameters:
-        sca_coeff: float
-            Scattering coefficient
-        c_medium: float
-            Speed of light in medium
-        target_x: float[3]
-            Position vector of the target
-        target_r: float
-            Extent of the target (radius for spherical targets)
         intersection_f: function
             function used to calculate the intersection
-        scattering_function:
+        scattering_function: function
             rng function drawing angles from scattering function
+        scattering_length_function: function
+            function that returns scattering length as function of wavelength
+        ref_index_func: function
+            function that returns the refractive index as function of wavelength
     """
 
-    def step(pos, dir, time, key, isec, isec_pos, stepcnt):
+    def step(photon_state, rng_key):
         """Single photon step."""
-        k1, k2 = random.split(key)
+        pos = photon_state["pos"]
+        dir = photon_state["dir"]
+        time = photon_state["time"]
+        isec = photon_state["isec"]
+        isec_pos = photon_state["isec_pos"]
+        stepcnt = photon_state["stepcnt"]
+        wavelength = photon_state["wavelength"]
 
-        eta = random.uniform(k1)
+        rng_key, sub_key = random.split(rng_key)
+
+        sca_coeff = 1 / scattering_length_function(wavelength)
+        c_medium = (
+            Constants.BaseConstants.c_vac * 1e-9 / ref_index_func(wavelength)
+        )  # m/ns
+
+        eta = random.uniform(rng_key)
         step_size = -jnp.log(eta) / sca_coeff
 
         dstep = step_size * dir
@@ -259,8 +396,6 @@ def make_step_function(
         isec, isec_pos = intersection_f(
             pos,
             dir,
-            target_x,
-            target_r,
             step_size,
         )
 
@@ -281,12 +416,22 @@ def make_step_function(
             isec,
             lambda args: args[1],
             lambda args: calc_new_direction(args[0], args[1], scattering_function),
-            (k1, dir),
+            (rng_key, dir),
         )
 
         stepcnt = cond(isec, lambda s: s, lambda s: s + 1, stepcnt)
 
-        return new_pos, new_dir, new_time, k2, isec, isec_pos, stepcnt
+        new_photon_state = {
+            "pos": new_pos,
+            "dir": new_dir,
+            "time": new_time,
+            "isec": isec,
+            "isec_pos": isec_pos,
+            "stepcnt": stepcnt,
+            "wavelength": wavelength,
+        }
+
+        return new_photon_state, sub_key
 
     return step
 
@@ -300,13 +445,102 @@ def unpack_args(f):
     return _f
 
 
+def initialize_direction_isotropic(rng_key):
+    """Draw direction uniformly on a sphere."""
+    k1, k2 = random.split(rng_key, 2)
+    theta = jnp.arccos(random.uniform(k1, minval=-1, maxval=1))
+    phi = random.uniform(k2, minval=0, maxval=2 * np.pi)
+    direction = sph_to_cart(theta, phi, r=1)
+
+    return direction
+
+
+def initialize_direction_laser(rng_key):
+    """Return e_z."""
+    direction = jnp.array([0.0, 0.0, 1.0])
+    return direction
+
+
+def make_monochromatic_initializer(wavelength):
+    """Make a monochromatic initializer function."""
+
+    def initialize_monochromatic(rng_key):
+        return wavelength
+
+    return initialize_monochromatic
+
+
+wl_mono_400nm_init = make_monochromatic_initializer(400)
+
+
+def make_loop_until_isec_or_maxtime(max_time):
+    """Make function that will call the step_function until either the photon intersetcs or max_time is reached."""
+
+    def loop_until_isec_or_maxtime(step_function, initial_photon_state, rng_key):
+        final_photon_state, _ = while_loop(
+            lambda args: (args[0]["isec"] == False)  # noqa: E712
+            & (args[0]["time"] < max_time),
+            unpack_args(step_function),
+            (initial_photon_state, rng_key),
+        )
+        return final_photon_state
+
+    return loop_until_isec_or_maxtime
+
+
+def make_loop_for_n_steps(n_steps):
+    """Make function that calls step_function n_steps times."""
+
+    def loop_for_nsteps(step_function, initial_photon_state, rng_key):
+        final_photon_state, _ = fori_loop(
+            0,
+            n_steps,
+            lambda i, args: unpack_args(step_function)(args),
+            (initial_photon_state, rng_key),
+        )
+        return final_photon_state
+
+    return loop_for_nsteps
+
+
+def make_fixed_pos_time_initializer(
+    initial_pos, initial_time, dir_init, wavelength_init
+):
+    """
+    Initialize with fixed position and time and sample for direction and wavelength.
+
+    initial_pos: float[3]
+        Position vector of the emitter
+    initial_time: float
+        Emitter time
+    dir_init: function
+        Emission direction initializer
+    wavelength_init: function
+        wavelength initializer
+    """
+
+    def init(rng_key):
+        k1, k2 = random.split(rng_key, 2)
+
+        # Set initial photon state
+        initial_photon_state = {
+            "pos": initial_pos,
+            "dir": dir_init(k1),
+            "time": initial_time,
+            "isec": False,
+            "isec_pos": initial_pos,
+            "stepcnt": 0,
+            "wavelength": wavelength_init(k2),
+        }
+        return initial_photon_state
+
+    return init
+
+
 def make_photon_trajectory_fun(
     step_function,
-    emitter_x,
-    emitter_t,
-    max_time,
-    emission_mode="uniform",
-    stepping_mode="until_intersect",
+    photon_init_function,
+    loop_func,
 ):
     """
     Make a photon trajectory function.
@@ -314,57 +548,37 @@ def make_photon_trajectory_fun(
     This function calls the photon step function multiple times until
     some termination condition is reached (defined by `stepping_mode`)
 
-    max_dist: float
-        Maximum time a photon is tracked
-    emitter_x: float[3]
-        Position vector of the emitter
-    emitter_t: float
-        Emitter time
-    emission_mode: "uniform" or "laser"
-        Emission mode
-    stepping_mode: "until_intersect"
-        Stepping mode
+    step_function: function
+        Function that updates the photon state
+
+    photon_init_function: function
+        Function that returns the initial photon state
+
+    loop_func: function
+        Looping function that calls the photon step function.
     """
-    if stepping_mode == "until_intersect":
 
-        def make_n_steps_until_intersect(key):
-            """
-            Make a function that steps a photon until it either intersects or max length is reached.
+    def make_steps(key):
+        """
+        Make a function that steps a photon until it either intersects or  max length is reached.
 
-            Parameters:
-                key: PRNGKey
+        Parameters:
+            key: PRNGKey
 
-            Returns:
-                position: float[3]
-                    Final photon position
-                time: float
-                    Final photon time
-                direction: float[3]
-                    Initial photon direction
-            """
-            if emission_mode == "uniform":
-                k1, k2, k3 = random.split(key, 3)
-                theta = jnp.arccos(random.uniform(k1, minval=-1, maxval=1))
-                phi = random.uniform(k2, minval=0, maxval=2 * np.pi)
-                direction = sph_to_cart(theta, phi, r=1)
-            elif emission_mode == "laser":
-                direction = jnp.array([0.0, 0.0, 1.0])
-                key, k3 = random.split(key)
+        Returns:
+            photon_state: dict
+                Final photon state
+        """
+        k1, k2 = random.split(key, 2)
 
-            position = jnp.array(emitter_x)
-            time = emitter_t
-            stepcnt = 0
-            position, _, time, _, isec, isec_pos, stepcnt = while_loop(
-                lambda args: (args[4] == False) & (args[2] < max_time),  # noqa: E712
-                unpack_args(step_function),
-                (position, direction, time, k3, False, position, stepcnt),
-            )
+        # Set initial photon state
+        initial_photon_state = photon_init_function(k1)
 
-            return position, time, direction, isec, isec_pos, stepcnt
+        final_photon_state = loop_func(step_function, initial_photon_state, k2)
 
-        return make_n_steps_until_intersect
-    else:
-        raise NotImplementedError(f"Stepping mode {stepping_mode} not implemented")
+        return final_photon_state
+
+    return make_steps
 
 
 def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=50e6):
@@ -375,19 +589,22 @@ def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=50e6):
     stepss = []
     nphotons = int(nphotons)
     isec_poss = []
+    wavelengths = []
 
     total_detected_photons = 0
     sims_cnt = 0
 
     for i in range(nsims):
         key, subkey = random.split(key)
-        positions, times, directions, isecs, isec_pos, steps = traj_func(
-            random.split(key, num=nphotons)
-        )
-        isec_times.append(np.asarray(times[isecs]))
-        stepss.append(np.asarray(steps[isecs]))
-        ph_thetas.append(np.asarray(jnp.arccos(directions[isecs, 2])))
-        isec_poss.append(np.asarray(isec_pos[isecs]))
+        photon_state = traj_func(random.split(key, num=nphotons))
+
+        isecs = photon_state["isec"]
+
+        isec_times.append(np.asarray(photon_state["time"][isecs]))
+        stepss.append(np.asarray(photon_state["stepcnt"][isecs]))
+        ph_thetas.append(np.asarray(jnp.arccos(photon_state["dir"][isecs, 2])))
+        isec_poss.append(np.asarray(photon_state["isec_pos"][isecs]))
+        wavelengths.append(np.asarray(photon_state["wavelength"][isecs]))
 
         sims_cnt = i
         total_detected_photons += jnp.sum(isecs)
@@ -398,5 +615,6 @@ def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=50e6):
     ph_thetas = np.concatenate(ph_thetas)
     stepss = np.concatenate(stepss)
     isec_poss = np.vstack(isec_poss)
+    wavelengths = np.concatenate(wavelengths)
 
-    return isec_times, ph_thetas, stepss, isec_poss, sims_cnt
+    return isec_times, ph_thetas, stepss, isec_poss, sims_cnt, wavelengths
