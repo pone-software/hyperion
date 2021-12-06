@@ -77,9 +77,8 @@ if __name__ == "__main__":
             tot_weight = weights * c_weight / nphotons_sim
 
             if args.tts > 0:
-                split_len = int(1e6)
+                split_len = int(1e5)
                 splits = int(np.ceil(len(tres) / split_len))
-
                 eval_cdf = 0
                 for nsplit in range(splits):
                     this_slice = slice(nsplit * split_len, (nsplit + 1) * split_len)
@@ -87,7 +86,7 @@ if __name__ == "__main__":
                     eval_cdf += (
                         dist.cdf(binning[:, np.newaxis]) * tot_weight[this_slice]
                     ).sum(axis=1)
-                hist = eval_cdf.diff()
+                hist = np.diff(eval_cdf)
             else:
 
                 hist, _ = np.histogram(tres, weights=tot_weight, bins=binning)
