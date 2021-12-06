@@ -17,7 +17,7 @@ from hyperion.propagate import (
     mixed_hg_rayleigh_antares,
     sca_len_func_antares,
 )
-from hyperiorn.utils import calculate_min_number_steps
+from hyperion.utils import calculate_min_number_steps
 from jax import jit, vmap
 from scipy.stats import qmc
 from tqdm import tqdm
@@ -97,7 +97,7 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
     )
     trajec_fun_v = jit(vmap(trajec_fun, in_axes=[0]))
 
-    times, emission_angles, steps, positions, sims_cnt = collect_hits(
+    times, emission_angles, steps, positions, sims_cnt, wavelengths = collect_hits(
         trajec_fun_v, args.ph_per_batch, args.n_ph_batches, args.seed
     )
     all_data.append(
@@ -108,6 +108,7 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
             "photon_steps": steps,
             "positions_det": positions,
             "nphotons_sim": sims_cnt * args.ph_per_batch,
+            "wavelengths": wavelengths
         }
     )
 

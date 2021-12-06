@@ -581,7 +581,7 @@ def make_photon_trajectory_fun(
     return make_steps
 
 
-def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=50e6):
+def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=1e7):
     """Run photon prop multiple times and collect hits."""
     key = random.PRNGKey(seed)
     isec_times = []
