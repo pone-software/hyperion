@@ -94,3 +94,5 @@ def make_cascadia_abs_len_func(sca_len_func):
 
     def abs_len(wavelength):
         return 1 / (1 / np.exp(spl(wavelength)) - 1 / sca_len_func(wavelength))
+
+    return abs_len
