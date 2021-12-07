@@ -1,7 +1,7 @@
 """Generate photons for a range of emitter-reciever distances."""
 import pickle
 from argparse import ArgumentParser
-
+import jax
 import jax.numpy as jnp
 import numpy as np
 from hyperion.propagate import (
