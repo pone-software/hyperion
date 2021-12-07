@@ -2,6 +2,7 @@
 import numpy as np
 import scipy.stats
 from scipy.integrate import quad
+from scipy.interpolate import UnivariateSpline
 
 from .constants import Constants
 
@@ -85,3 +86,11 @@ def calculate_min_number_steps(
     lim = scipy.optimize.brentq(func, 2, 100)
 
     return int(np.ceil(lim))
+
+
+def make_cascadia_abs_len_func(sca_len_func):
+    att_lengths = np.asarray([[365, 10.4], [400, 14.6], [450, 27.7], [585, 7.1]])
+    spl = UnivariateSpline(att_lengths[:, 0], np.log(att_lengths[:, 1]), k=2, s=0.01)
+
+    def abs_len(wavelength):
+        return 1 / (1 / np.exp(spl(wavelength)) - 1 / sca_len_func(wavelength))
