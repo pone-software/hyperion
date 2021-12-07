@@ -159,7 +159,7 @@ def make_mixed_scattering_func(f1, f2, ratio):
             Fraction of samples drawn from f1
     """
 
-    def _f(key):
+    def _f(keys):
         k1, k2 = keys
         is_f1 = random.uniform(k1) < ratio
 
