@@ -1,6 +1,7 @@
 import scipy.stats
 import numpy as np
 from scipy.interpolate import UnivariateSpline
+from scipy.integrate import quad
 
 
 class SPETemplate:
