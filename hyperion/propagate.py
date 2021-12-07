@@ -29,6 +29,9 @@ def make_photon_sphere_intersection_func(target_x, target_r):
         target_r: float
     """
 
+    @functools.partial(
+        jax.profiler.annotate_function, name="photon_sphere_intersection"
+    )
     def photon_sphere_intersection(photon_x, photon_p, step_size):
         """
         Calculate intersection.
@@ -104,6 +107,9 @@ def photon_plane_intersection(photon_x, photon_p, target_x, target_r, step_size)
     return result
 
 
+@functools.partial(
+    jax.profiler.annotate_function, name="henyey_greenstein_scattering_angle"
+)
 def henyey_greenstein_scattering_angle(key, g=0.9):
     """Henyey-Greenstein scattering in one plane."""
     eta = random.uniform(key)
@@ -154,6 +160,7 @@ def make_mixed_scattering_func(f1, f2, ratio):
             Fraction of samples drawn from f1
     """
 
+    @functools.partial(jax.profiler.annotate_function, name="mixed_scattering_func")
     def _f(key):
         k1, k2 = random.split(key)
         is_f1 = random.uniform(k1) < ratio
@@ -181,6 +188,7 @@ mixed_hg_liu_icecube = make_mixed_scattering_func(
 def make_wl_dep_sca_len_func(vol_conc_small_part, vol_conc_large_part):
     """Make a function that calculates the scattering length based on particle concentrations."""
 
+    @functools.partial(jax.profiler.annotate_function, name="sca_len")
     def sca_len(wavelength):
         ref_wlen = 550  # nm
         x = ref_wlen / wavelength
@@ -233,6 +241,7 @@ def make_ref_index_func(salinity, temperature, pressure):
     a3 = -n9
     a4 = n10
 
+    @functools.partial(jax.profiler.annotate_function, name="ref_index")
     def ref_index_func(wavelength):
 
         x = 1 / wavelength
@@ -284,6 +293,7 @@ def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func):
     norm = integral(wl_range[-1])
     poly_pars = np.polyfit(np.vectorize(integral)(wls) / norm, wls, 10)
 
+    @functools.partial(jax.profiler.annotate_function, name="frank_tamm")
     def sampling_func(rng_key):
         uni = random.uniform(rng_key)
         return jnp.polyval(poly_pars, uni)
@@ -291,6 +301,7 @@ def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func):
     return sampling_func
 
 
+@functools.partial(jax.profiler.annotate_function, name="calc_new_direction")
 def calc_new_direction(key, old_dir, scattering_function):
     """
     Calculate new direction after sampling a scattering angle.
@@ -368,6 +379,7 @@ def make_step_function(
             function that returns the refractive index as function of wavelength
     """
 
+    @functools.partial(jax.profiler.annotate_function, name="step_function")
     def step(photon_state, rng_key):
         """Single photon step."""
         pos = photon_state["pos"]
@@ -446,6 +458,9 @@ def unpack_args(f):
     return _f
 
 
+@functools.partial(
+    jax.profiler.annotate_function, name="initialize_direction_isotropic"
+)
 def initialize_direction_isotropic(rng_key):
     """Draw direction uniformly on a sphere."""
     k1, k2 = random.split(rng_key, 2)
