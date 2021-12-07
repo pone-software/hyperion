@@ -428,7 +428,6 @@ def make_step_function(
             "dir": new_dir,
             "time": new_time,
             "isec": isec,
-            "isec_pos": isec_pos,
             "stepcnt": stepcnt,
             "wavelength": wavelength,
         }
