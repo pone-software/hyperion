@@ -374,18 +374,17 @@ def make_step_function(
         dir = photon_state["dir"]
         time = photon_state["time"]
         isec = photon_state["isec"]
-        isec_pos = photon_state["isec_pos"]
         stepcnt = photon_state["stepcnt"]
         wavelength = photon_state["wavelength"]
 
-        rng_key, sub_key = random.split(rng_key)
+        k1, k2, k3 = random.split(rng_key, 3)
 
         sca_coeff = 1 / scattering_length_function(wavelength)
         c_medium = (
             Constants.BaseConstants.c_vac * 1e-9 / ref_index_func(wavelength)
         )  # m/ns
 
-        eta = random.uniform(rng_key)
+        eta = random.uniform(k1)
         step_size = -jnp.log(eta) / sca_coeff
 
         dstep = step_size * dir
@@ -401,10 +400,12 @@ def make_step_function(
 
         isec_time = time + jnp.linalg.norm(pos - isec_pos) / c_medium
 
+        # If intersected, set position to intersection position
         new_pos = cond(
             isec, lambda args: args[0], lambda args: args[1], (isec_pos, new_pos)
         )
 
+        # If intersected set time to intersection time
         new_time = cond(
             isec,
             lambda args: args[0],
@@ -412,11 +413,12 @@ def make_step_function(
             (isec_time, new_time),
         )
 
+        # If intersected, keep previous direction
         new_dir = cond(
             isec,
             lambda args: args[1],
             lambda args: calc_new_direction(args[0], args[1], scattering_function),
-            (rng_key, dir),
+            (k2, dir),
         )
 
         stepcnt = cond(isec, lambda s: s, lambda s: s + 1, stepcnt)
@@ -431,7 +433,7 @@ def make_step_function(
             "wavelength": wavelength,
         }
 
-        return new_photon_state, sub_key
+        return new_photon_state, k3
 
     return step
 
@@ -528,7 +530,6 @@ def make_fixed_pos_time_initializer(
             "dir": dir_init(k1),
             "time": initial_time,
             "isec": False,
-            "isec_pos": initial_pos,
             "stepcnt": 0,
             "wavelength": wavelength_init(k2),
         }
