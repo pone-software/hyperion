@@ -160,7 +160,7 @@ def make_mixed_scattering_func(f1, f2, ratio):
     """
 
     def _f(key):
-        k1, k2 = random.split(key)
+        k1, k2 = keys
         is_f1 = random.uniform(k1) < ratio
 
         return cond(is_f1, f1, f2, k2)
@@ -299,7 +299,6 @@ def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func):
     return sampling_func
 
 
-@functools.partial(jax.profiler.annotate_function, name="calc_new_direction")
 def calc_new_direction(keys, old_dir, scattering_function):
     """
     Calculate new direction after sampling a scattering angle.
@@ -308,11 +307,11 @@ def calc_new_direction(keys, old_dir, scattering_function):
     to the photon (e_z) and then rotated back to the global coordinate system.
     """
 
-    theta = scattering_function(keys[0])
+    theta = scattering_function(keys[0:2])
     cos_theta = jnp.cos(theta)
     sin_theta = jnp.sin(theta)
 
-    phi = random.uniform(keys[1], minval=0, maxval=2 * np.pi)
+    phi = random.uniform(keys[2], minval=0, maxval=2 * np.pi)
     cos_phi = jnp.cos(phi)
     sin_phi = jnp.sin(phi)
 
@@ -386,14 +385,15 @@ def make_step_function(
         stepcnt = photon_state["stepcnt"]
         wavelength = photon_state["wavelength"]
 
-        k1, k2, k3, k4 = random.split(rng_key, 4)
+        # TODO: make this more flexible
+        keys = random.split(rng_key, 5)
 
         sca_coeff = 1 / scattering_length_function(wavelength)
         c_medium = (
             Constants.BaseConstants.c_vac * 1e-9 / ref_index_func(wavelength)
         )  # m/ns
 
-        eta = random.uniform(k1)
+        eta = random.uniform(keys[0])
         step_size = -jnp.log(eta) / sca_coeff
 
         dstep = step_size * dir
@@ -427,7 +427,7 @@ def make_step_function(
             isec,
             lambda args: args[1],
             lambda args: calc_new_direction(args[0], args[1], scattering_function),
-            ([k2, k3], dir),
+            (keys[1:4], dir),
         )
 
         stepcnt = cond(isec, lambda s: s, lambda s: s + 1, stepcnt)
@@ -441,7 +441,7 @@ def make_step_function(
             "wavelength": wavelength,
         }
 
-        return new_photon_state, k4
+        return new_photon_state, keys[4]
 
     return step
 
