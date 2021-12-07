@@ -124,8 +124,7 @@ def rayleigh_scattering_angle(key):
     b = 0.835
     p = 1.0 / 0.835
 
-    key, subkey = random.split(key)
-    q = (b + 3.0) * ((random.uniform(subkey)) - 0.5) / b
+    q = (b + 3.0) * ((random.uniform(key)) - 0.5) / b
     d = q * q + p * p * p
 
     u1 = -q + jnp.sqrt(d)
@@ -160,7 +159,6 @@ def make_mixed_scattering_func(f1, f2, ratio):
             Fraction of samples drawn from f1
     """
 
-    @functools.partial(jax.profiler.annotate_function, name="mixed_scattering_func")
     def _f(key):
         k1, k2 = random.split(key)
         is_f1 = random.uniform(k1) < ratio
@@ -302,20 +300,19 @@ def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func):
 
 
 @functools.partial(jax.profiler.annotate_function, name="calc_new_direction")
-def calc_new_direction(key, old_dir, scattering_function):
+def calc_new_direction(keys, old_dir, scattering_function):
     """
     Calculate new direction after sampling a scattering angle.
 
     Scattering is calculated in a reference frame local
     to the photon (e_z) and then rotated back to the global coordinate system.
     """
-    k1, k2 = random.split(key)
 
-    theta = scattering_function(k1)
+    theta = scattering_function(keys[0])
     cos_theta = jnp.cos(theta)
     sin_theta = jnp.sin(theta)
 
-    phi = random.uniform(k2, minval=0, maxval=2 * np.pi)
+    phi = random.uniform(keys[1], minval=0, maxval=2 * np.pi)
     cos_phi = jnp.cos(phi)
     sin_phi = jnp.sin(phi)
 
@@ -389,7 +386,7 @@ def make_step_function(
         stepcnt = photon_state["stepcnt"]
         wavelength = photon_state["wavelength"]
 
-        k1, k2, k3 = random.split(rng_key, 3)
+        k1, k2, k3, k4 = random.split(rng_key, 4)
 
         sca_coeff = 1 / scattering_length_function(wavelength)
         c_medium = (
@@ -430,7 +427,7 @@ def make_step_function(
             isec,
             lambda args: args[1],
             lambda args: calc_new_direction(args[0], args[1], scattering_function),
-            (k2, dir),
+            ([k2, k3], dir),
         )
 
         stepcnt = cond(isec, lambda s: s, lambda s: s + 1, stepcnt)
@@ -444,7 +441,7 @@ def make_step_function(
             "wavelength": wavelength,
         }
 
-        return new_photon_state, k3
+        return new_photon_state, k4
 
     return step
 
