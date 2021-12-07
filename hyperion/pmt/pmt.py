@@ -1,5 +1,6 @@
 import scipy.stats
 import numpy as np
+from scipy.interpolate import UnivariateSpline
 
 
 class SPETemplate:
