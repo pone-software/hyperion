@@ -15,7 +15,7 @@ with open("generate_photons.dag", "w") as hdl:
 
         hdl.write(f"JOB {i}_fit submit_fit.sub\n")
         hdl.write(
-            f'VARS {i}_fit infile="photon_table_{i}.pickle" outfile="photon_fitpars_{i}.pickle"\n'
+            f'VARS {i}_fit infile="photon_table_{i}.pickle" outfile="photon_fitpars_{i}.pickle" seed="{i}"\n'
         )
         hdl.write(f"PARENT {i}_photons CHILD {i}_fit\n")
 
