@@ -3,7 +3,7 @@ from scipy.stats import qmc
 
 sampler = qmc.Sobol(d=1, scramble=False)
 sample = sampler.random_base2(m=7)
-dists = (10 ** qmc.scale(sample, 0, np.log10(500))).squeeze()
+dists = (10 ** qmc.scale(sample, np.log10(5), np.log10(300))).squeeze()
 
 
 with open("generate_photons.dag", "w") as hdl:

@@ -45,6 +45,9 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
+if jax.default_backend() == "cpu":
+    raise RuntimeError("Running on CPU. Bailing...")
+
 
 outfile = open(args.outfile, "wb")
 outfile.close()
@@ -108,7 +111,7 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
             "photon_steps": steps,
             "positions_det": positions,
             "nphotons_sim": sims_cnt * args.ph_per_batch,
-            "wavelengths": wavelengths
+            "wavelengths": wavelengths,
         }
     )
 
