@@ -603,7 +603,7 @@ def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=1e7):
         isec_times.append(np.asarray(photon_state["time"][isecs]))
         stepss.append(np.asarray(photon_state["stepcnt"][isecs]))
         ph_thetas.append(np.asarray(jnp.arccos(photon_state["dir"][isecs, 2])))
-        isec_poss.append(np.asarray(photon_state["isec_pos"][isecs]))
+        isec_poss.append(np.asarray(photon_state["pos"][isecs]))
         wavelengths.append(np.asarray(photon_state["wavelength"][isecs]))
 
         sims_cnt = i
