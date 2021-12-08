@@ -3,7 +3,7 @@ from scipy.stats import qmc
 
 sampler = qmc.Sobol(d=1, scramble=False)
 sample = sampler.random_base2(m=7)
-dists = (10 ** qmc.scale(sample, 0, np.log10(500))).squeeze()
+dists = (10 ** qmc.scale(sample, np.log10(5), np.log10(300))).squeeze()
 
 
 with open("generate_photons.dag", "w") as hdl:
@@ -15,7 +15,7 @@ with open("generate_photons.dag", "w") as hdl:
 
         hdl.write(f"JOB {i}_fit submit_fit.sub\n")
         hdl.write(
-            f'VARS {i}_fit infile="photon_table_{i}.pickle" outfile="photon_fitpars_{i}.pickle"\n'
+            f'VARS {i}_fit infile="photon_table_{i}.pickle" outfile="photon_fitpars_{i}.pickle" seed="{i}"\n'
         )
         hdl.write(f"PARENT {i}_photons CHILD {i}_fit\n")
 

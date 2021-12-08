@@ -6,6 +6,7 @@ from jax.config import config
 
 config.update("jax_enable_x64", True)
 
+import jax
 import jax.numpy as jnp
 import numpy as np
 from hyperion.propagate import (
@@ -48,6 +49,9 @@ parser.add_argument(
     "-r", "--det-radius", type=float, required=True, dest="det_radius", default=None
 )
 args = parser.parse_args()
+
+if jax.default_backend() == "cpu":
+    raise RuntimeError("Running on CPU. Bailing...")
 
 
 outfile = open(args.outfile, "wb")
