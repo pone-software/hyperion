@@ -2,6 +2,10 @@
 import pickle
 from argparse import ArgumentParser
 
+from jax.config import config
+
+config.update("jax_enable_x64", True)
+
 import jax.numpy as jnp
 import numpy as np
 from hyperion.propagate import (
@@ -100,6 +104,7 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
     times, emission_angles, steps, positions, sims_cnt, wavelengths = collect_hits(
         trajec_fun_v, args.ph_per_batch, args.n_ph_batches, args.seed
     )
+
     all_data.append(
         {
             "dist": det_dist,
@@ -108,7 +113,7 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
             "photon_steps": steps,
             "positions_det": positions,
             "nphotons_sim": sims_cnt * args.ph_per_batch,
-            "wavelengths": wavelengths
+            "wavelengths": wavelengths,
         }
     )
 

@@ -1,8 +1,8 @@
 """Utility functions."""
 import numpy as np
 import scipy.stats
-from scipy.integrate import quad
 from scipy.interpolate import UnivariateSpline
+from scipy.special import gammaincc, gamma
 
 from .constants import Constants
 
@@ -38,7 +38,62 @@ def cherenkov_ang_dist(costheta: np.ndarray, n_ph: float = 1.35) -> np.ndarray:
     return a * np.exp(b * np.abs(costheta - cos_theta_c) ** c) + d
 
 
-ANG_DIST_INT = quad(cherenkov_ang_dist, -1, 1)[0]
+def cherenkov_ang_dist_int(n_ph, lower=-1, upper=1):
+    """
+    Integral of the cherenkov angular distribution function.
+    """
+
+    def incgamma(a, x):
+        return gamma(a) * gammaincc(a, x)
+
+    a = Constants.CherenkovLightYield.AngDist.a
+    b = Constants.CherenkovLightYield.AngDist.b
+    c = Constants.CherenkovLightYield.AngDist.c
+    d = Constants.CherenkovLightYield.AngDist.d
+    n_ph = np.atleast_1d(n_ph)
+    cos_theta_c = 1.0 / n_ph
+
+    def indef_int(x):
+        def lower_branch(x, cos_theta_c):
+            return (
+                1
+                / c
+                * (
+                    c * d * x
+                    + (
+                        a
+                        * (cos_theta_c - x)
+                        * incgamma(1 / c, -(b * (cos_theta_c - x) ** c))
+                    )
+                    * (-(b * (cos_theta_c - x) ** c)) ** (-1 / c)
+                )
+            )
+
+        def upper_branch(x, cos_theta_c):
+            return (
+                1
+                / c
+                * (
+                    c * d * x
+                    + (
+                        a
+                        * (cos_theta_c - x)
+                        * incgamma(1 / c, -(b * (-cos_theta_c + x) ** c))
+                    )
+                    * (-(b * (-cos_theta_c + x) ** c)) ** (-1 / c)
+                )
+            )
+
+        peak_val = lower_branch(cos_theta_c - 1e-5, cos_theta_c)
+        result = np.empty_like(cos_theta_c)
+        mask = x < cos_theta_c
+        result[mask] = lower_branch(x, cos_theta_c[mask])
+        mask = x > cos_theta_c
+        result[mask] = upper_branch(x, cos_theta_c[mask]) + 2 * peak_val[mask]
+
+        return result
+
+    return indef_int(upper) - indef_int(lower)
 
 
 def calculate_min_number_steps(
