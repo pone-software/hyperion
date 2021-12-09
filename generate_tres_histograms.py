@@ -1,4 +1,5 @@
 import pickle
+import os
 from argparse import ArgumentParser
 
 import numpy as np
@@ -50,7 +51,8 @@ if __name__ == "__main__":
 
     ref_index_func = cascadia_ref_index_func
     abs_len = make_cascadia_abs_len_func(sca_len_func_antares)
-    wl_acc = make_calc_wl_acceptance_weight("data/DOMEfficiency.dat")
+    path_to_wl_file = os.path.join(os.path.dirname(__file__), "data/DOMEfficiency.dat")
+    wl_acc = make_calc_wl_acceptance_weight(path_to_wl_file)
 
     def c_medium_f(wl):
         """Speed of light in medium for wl (nm)."""
