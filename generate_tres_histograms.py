@@ -10,8 +10,10 @@ from hyperion.utils import (
     cherenkov_ang_dist_int,
     make_cascadia_abs_len_func,
 )
+
+
 from hyperion.pmt.pmt import make_calc_wl_acceptance_weight
-from hyperion.propagate import cascadia_ref_index_func, sca_len_func_antares
+from hyperion.medium import cascadia_ref_index_func, sca_len_func_antares
 from hyperion.constants import Constants
 
 if __name__ == "__main__":

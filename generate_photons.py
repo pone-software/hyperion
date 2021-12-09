@@ -14,7 +14,6 @@ from tqdm import tqdm
 from jax import jit, vmap
 
 from hyperion.propagate import (
-    cascadia_ref_index_func,
     collect_hits,
     initialize_direction_isotropic,
     make_cherenkov_spectral_sampling_func,
@@ -23,7 +22,11 @@ from hyperion.propagate import (
     make_photon_sphere_intersection_func,
     make_photon_trajectory_fun,
     make_step_function,
+)
+
+from hyperion.medium import (
     mixed_hg_rayleigh_antares,
+    cascadia_ref_index_func,
     sca_len_func_antares,
 )
 from hyperion.utils import calculate_min_number_steps
@@ -39,7 +42,7 @@ parser.add_argument(
     "--photons_per_batch", type=float, required=False, dest="ph_per_batch", default=1e7
 )
 parser.add_argument(
-    "--n_photon_batches", type=int, required=False, dest="n_ph_batches", default=1000
+    "--n_photon_batches", type=int, required=False, dest="n_ph_batches", default=10000
 )
 parser.add_argument(
     "--max_dist", type=float, required=False, dest="max_dist", default=500

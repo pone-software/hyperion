@@ -28,10 +28,9 @@ def make_photon_sphere_intersection_func(target_x, target_r):
         target_x: float[3]
         target_r: float
     """
+    target_x = jnp.asarray(target_x, dtype=jnp.float32)
+    target_r = jnp.float32(target_r)
 
-    @functools.partial(
-        jax.profiler.annotate_function, name="photon_sphere_intersection"
-    )
     def photon_sphere_intersection(photon_x, photon_p, step_size):
         """
         Calculate intersection.
@@ -48,7 +47,7 @@ def make_photon_sphere_intersection_func(target_x, target_r):
             tuple(bool, float[3])
                 True and intersection position if intersected.
         """
-        p_normed = photon_p  # assume normed
+        p_normed = jnp.asarray(photon_p, dtype=jnp.float32)  # assume normed
 
         a = jnp.dot(p_normed, (photon_x - target_x))
         b = a ** 2 - (jnp.linalg.norm(photon_x - target_x) ** 2 - target_r ** 2)
@@ -61,7 +60,7 @@ def make_photon_sphere_intersection_func(target_x, target_r):
         result = cond(
             isected,
             lambda _: (True, photon_x + d * p_normed),
-            lambda _: (False, jnp.ones(3) * 1e8),
+            lambda _: (False, jnp.ones(3, dtype=jnp.float32) * 1e8),
             0,
         )
 
@@ -107,156 +106,6 @@ def photon_plane_intersection(photon_x, photon_p, target_x, target_r, step_size)
     return result
 
 
-@functools.partial(
-    jax.profiler.annotate_function, name="henyey_greenstein_scattering_angle"
-)
-def henyey_greenstein_scattering_angle(key, g=0.9):
-    """Henyey-Greenstein scattering in one plane."""
-    eta = random.uniform(key)
-    costheta = (
-        1 / (2 * g) * (1 + g ** 2 - ((1 - g ** 2) / (1 + g * (2 * eta - 1))) ** 2)
-    )
-    return jnp.arccos(costheta)
-
-
-def rayleigh_scattering_angle(key):
-    """Rayleigh scattering. Adapted from clsim."""
-    b = 0.835
-    p = 1.0 / 0.835
-
-    q = (b + 3.0) * ((random.uniform(key)) - 0.5) / b
-    d = q * q + p * p * p
-
-    u1 = -q + jnp.sqrt(d)
-    u = jnp.cbrt(jnp.abs(u1)) * jnp.sign(u1)
-
-    v1 = -q - jnp.sqrt(d)
-    v = jnp.cbrt(jnp.abs(v1)) * jnp.sign(v1)
-
-    return jnp.arccos(jax.lax.clamp(-1.0, u + v, 1.0))
-
-
-def liu_scattering_angle(key, g=0.95):
-    """
-    Simplified liu scattering.
-
-    https://arxiv.org/pdf/1301.5361.pdf
-    """
-    beta = (1 - g) / (1 + g)
-    xi = random.uniform(key)
-    costheta = 2 * xi ** beta - 1
-    return jnp.arccos(costheta)
-
-
-def make_mixed_scattering_func(f1, f2, ratio):
-    """
-    Create a mixture model with two sampling functions.
-
-    Paramaters:
-        f1, f2: functions
-            Sampling functions taking one argument (random key)
-        ratio: float
-            Fraction of samples drawn from f1
-    """
-
-    def _f(key):
-        k1, k2 = random.split(key)
-        is_f1 = random.uniform(k1) < ratio
-
-        return cond(is_f1, f1, f2, k2)
-
-    return _f
-
-
-"""Mix of HG and Rayleigh. Distribution similar to ANTARES Petzold+Rayleigh."""
-mixed_hg_rayleigh_antares = make_mixed_scattering_func(
-    rayleigh_scattering_angle,
-    lambda k: henyey_greenstein_scattering_angle(k, 0.97),
-    0.15,
-)
-
-"""Mix of HG and Liu. IceCube"""
-mixed_hg_liu_icecube = make_mixed_scattering_func(
-    lambda k: liu_scattering_angle(k, 0.95),
-    lambda k: henyey_greenstein_scattering_angle(k, 0.95),
-    0.35,
-)
-
-
-def make_wl_dep_sca_len_func(vol_conc_small_part, vol_conc_large_part):
-    """Make a function that calculates the scattering length based on particle concentrations."""
-
-    @functools.partial(jax.profiler.annotate_function, name="sca_len")
-    def sca_len(wavelength):
-        ref_wlen = 550  # nm
-        x = ref_wlen / wavelength
-
-        sca_coeff = (
-            0.0017 * jnp.power(x, 4.3)
-            + 1.34 * vol_conc_small_part * jnp.power(x, 1.7)
-            + 0.312 * vol_conc_large_part * jnp.power(x, 0.3)
-        )
-
-        return 1 / sca_coeff
-
-    return sca_len
-
-
-sca_len_func_antares = make_wl_dep_sca_len_func(0.0075e-6, 0.0075e-6)
-
-
-def make_ref_index_func(salinity, temperature, pressure):
-    """
-    Make function that returns refractive index as function of wavelength.
-
-    Parameters:
-        salinity: float
-            Salinity in parts per thousand
-        temperature: float
-            Temperature in C
-        pressure: float
-            Pressure in bar
-    """
-    n0 = 1.31405
-    n1 = 1.45e-5
-    n2 = 1.779e-4
-    n3 = 1.05e-6
-    n4 = 1.6e-8
-    n5 = 2.02e-6
-    n6 = 15.868
-    n7 = 0.01155
-    n8 = 0.00423
-    n9 = 4382
-    n10 = 1.1455e6
-
-    a01 = (
-        n0
-        + (n2 - n3 * temperature + n4 * temperature * temperature) * salinity
-        - n5 * temperature * temperature
-        + n1 * pressure
-    )
-    a2 = n6 + n7 * salinity - n8 * temperature
-    a3 = -n9
-    a4 = n10
-
-    @functools.partial(jax.profiler.annotate_function, name="ref_index")
-    def ref_index_func(wavelength):
-
-        x = 1 / wavelength
-        return a01 + x * (a2 + x * (a3 + x * a4))
-
-    return ref_index_func
-
-
-antares_ref_index_func = make_ref_index_func(
-    pressure=215.82225 / 1.01325, temperature=13.1, salinity=38.44
-)
-
-cascadia_ref_index_func = make_ref_index_func(
-    pressure=269.44088 / 1.01325, temperature=1.8, salinity=34.82
-)
-
-
 def frank_tamm(wavelength, ref_index_func):
     """Frank Tamm Formula."""
     return (
@@ -289,17 +138,17 @@ def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func):
         functools.partial(frank_tamm, ref_index_func=ref_index_func), wl_range[0], upper
     )[0]
     norm = integral(wl_range[-1])
-    poly_pars = np.polyfit(np.vectorize(integral)(wls) / norm, wls, 10)
+    poly_pars = jnp.asarray(
+        np.polyfit(np.vectorize(integral)(wls) / norm, wls, 10), dtype=jnp.float32
+    )
 
-    @functools.partial(jax.profiler.annotate_function, name="frank_tamm")
     def sampling_func(rng_key):
-        uni = random.uniform(rng_key)
+        uni = random.uniform(rng_key, dtype=jnp.float32)
         return jnp.polyval(poly_pars, uni)
 
     return sampling_func
 
 
-@functools.partial(jax.profiler.annotate_function, name="calc_new_direction")
 def calc_new_direction(keys, old_dir, scattering_function):
     """
     Calculate new direction after sampling a scattering angle.
@@ -397,8 +246,8 @@ def make_step_function(
         step_size = -jnp.log(eta) / sca_coeff
 
         dstep = step_size * dir
-        new_pos = pos + dstep
-        new_time = time + step_size / c_medium
+        new_pos = jnp.asarray(pos + dstep, dtype=jnp.float32)
+        new_time = jnp.float32(time + step_size / c_medium)
 
         # Calculate intersection
         isec, isec_pos = intersection_f(
@@ -407,7 +256,7 @@ def make_step_function(
             step_size,
         )
 
-        isec_time = time + jnp.linalg.norm(pos - isec_pos) / c_medium
+        isec_time = jnp.float32(time + jnp.linalg.norm(pos - isec_pos) / c_medium)
 
         # If intersected, set position to intersection position
         new_pos = cond(
@@ -537,11 +386,11 @@ def make_fixed_pos_time_initializer(
 
         # Set initial photon state
         initial_photon_state = {
-            "pos": initial_pos,
+            "pos": jnp.asarray(initial_pos, dtype=jnp.float32),
             "dir": dir_init(k1),
-            "time": initial_time,
+            "time": jnp.float32(initial_time),
             "isec": False,
-            "stepcnt": 0,
+            "stepcnt": jnp.int32(0),
             "wavelength": wavelength_init(k2),
         }
         return initial_photon_state
