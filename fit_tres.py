@@ -157,7 +157,7 @@ if __name__ == "__main__":
                 abs_weight * c_weight,
                 det_dist,
                 det_radius=args.det_radius,
-                c_medium=c_medium_f(700),  # use 700nm as reference
+                c_medium=c_medium_f(700) / 1e9,  # use 700nm as reference
                 thr=2,
             )
             obj = make_obj_func(pdf, t, w, 5)

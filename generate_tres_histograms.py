@@ -76,7 +76,7 @@ if __name__ == "__main__":
         wl_weight = wl_acc(wavelengths, 0.28)
 
         # For time residual use 700nm as reference
-        tres = calc_tres(isec_times, args.det_radius, det_dist, c_medium_f(700))
+        tres = calc_tres(isec_times, args.det_radius, det_dist, c_medium_f(700) / 1e9)
 
         """
         if args.tts > 0:
