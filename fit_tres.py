@@ -142,7 +142,7 @@ if __name__ == "__main__":
 
         prop_dist = isec_times * c_medium_f(wavelengths) / 1e9
         abs_weight = np.exp(-prop_dist / abs_len(wavelengths))
-        c_medium = c_medium_f(wavelengths)
+
         for theta in tqdm(thetas, total=len(thetas), leave=False):
 
             c_weight = (
@@ -157,7 +157,7 @@ if __name__ == "__main__":
                 abs_weight * c_weight,
                 det_dist,
                 det_radius=args.det_radius,
-                c_medium=c_medium,
+                c_medium=c_medium_f(700),  # use 700nm as reference
                 thr=2,
             )
             obj = make_obj_func(pdf, t, w, 5)

@@ -1,10 +1,17 @@
-import json
 import pickle
 from argparse import ArgumentParser
 
 import numpy as np
 import scipy.stats
-from hyperion.utils import ANG_DIST_INT, calc_tres, cherenkov_ang_dist
+from hyperion.utils import (
+    calc_tres,
+    cherenkov_ang_dist,
+    cherenkov_ang_dist_int,
+    make_cascadia_abs_len_func,
+)
+from hyperion.pmt.pmt import make_calc_wl_acceptance_weight
+from hyperion.propagate import cascadia_ref_index_func, sca_len_func_antares
+from hyperion.constants import Constants
 
 if __name__ == "__main__":
 
@@ -13,13 +20,6 @@ if __name__ == "__main__":
     parser.add_argument("-o", "--outfile", required=True, dest="outfile")
     parser.add_argument(
         "-r", "--det-radius", type=float, required=True, dest="det_radius", default=None
-    )
-    parser.add_argument(
-        "-m",
-        "--medium-file",
-        type=str,
-        required=True,
-        dest="medium",
     )
     parser.add_argument(
         "-s",
@@ -42,14 +42,19 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    medium = json.load(open(args.medium))
-    c_medium = 0.299792458 / medium["n_ph"]
-
     det_ph = pickle.load(open(args.infile, "rb"))
     hists = []
     inp_data = []
 
     binning = np.linspace(-30, 500, 530)
+
+    ref_index_func = cascadia_ref_index_func
+    abs_len = make_cascadia_abs_len_func(sca_len_func_antares)
+    wl_acc = make_calc_wl_acceptance_weight("data/DOMEfficiency.dat")
+
+    def c_medium_f(wl):
+        """Speed of light in medium for wl (nm)."""
+        return Constants.BaseConstants.c_vac / cascadia_ref_index_func(wl)
 
     for i in range(len(det_ph)):
         sim_data = det_ph[i]
@@ -59,22 +64,31 @@ if __name__ == "__main__":
         stepss = sim_data["photon_steps"]
         isec_poss = sim_data["positions_det"]
         nphotons_sim = sim_data["nphotons_sim"]
+        wavelengths = sim_data["wavelengths"]
 
         rstate = np.random.RandomState(args.seed)
 
         obs_angs = np.arccos(rstate.uniform(-1, 1, size=args.n_thetas))
-        tres = calc_tres(isec_times, 0.21, det_dist, c_medium)
+        prop_dist = isec_times * c_medium_f(wavelengths) / 1e9
+        abs_weight = np.exp(-prop_dist / abs_len(wavelengths))
+        wl_weight = wl_acc(wavelengths, 0.28)
+
+        # For time residual use 700nm as reference
+        tres = calc_tres(isec_times, args.det_radius, det_dist, c_medium_f(700))
 
         """
         if args.tts > 0:
             tres += rstate.normal(0, scale=args.tts, size=tres.shape[0])
         """
-
-        weights = np.exp(-isec_times * c_medium / medium["abs_len"])
-
         for obs in obs_angs:
-            c_weight = cherenkov_ang_dist(np.cos(ph_thetas - obs)) / ANG_DIST_INT * 2
-            tot_weight = weights * c_weight / nphotons_sim
+            c_weight = (
+                cherenkov_ang_dist(
+                    np.cos(ph_thetas - obs), n_ph=ref_index_func(wavelengths)
+                )
+                / cherenkov_ang_dist_int(ref_index_func(wavelengths), -1, 1)
+                * 2
+            )
+            tot_weight = abs_weight * c_weight * wl_weight / nphotons_sim
 
             if args.tts > 0:
                 split_len = int(1e5)
@@ -90,6 +104,7 @@ if __name__ == "__main__":
             else:
 
                 hist, _ = np.histogram(tres, weights=tot_weight, bins=binning)
+
             hists.append(hist)
             inp_data.append([obs, det_dist])
 
