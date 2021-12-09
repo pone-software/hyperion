@@ -1,14 +1,18 @@
 """Generate photons for a range of emitter-reciever distances."""
-import pickle
-from argparse import ArgumentParser
-
 from jax.config import config
 
 config.update("jax_enable_x64", True)
 
+import pickle
 import jax
 import jax.numpy as jnp
 import numpy as np
+
+from argparse import ArgumentParser
+from scipy.stats import qmc
+from tqdm import tqdm
+from jax import jit, vmap
+
 from hyperion.propagate import (
     cascadia_ref_index_func,
     collect_hits,
@@ -23,9 +27,7 @@ from hyperion.propagate import (
     sca_len_func_antares,
 )
 from hyperion.utils import calculate_min_number_steps
-from jax import jit, vmap
-from scipy.stats import qmc
-from tqdm import tqdm
+
 
 parser = ArgumentParser()
 parser.add_argument("-o", "--outfile", required=True, dest="outfile")
