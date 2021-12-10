@@ -20,7 +20,7 @@ from hyperion.utils import (  # noqa: E402
     cherenkov_ang_dist_int,
     make_cascadia_abs_len_func,
 )
-from hyperion.propagate import (  # noqa: E402
+from hyperion.medium import (  # noqa: E402
     cascadia_ref_index_func,
     sca_len_func_antares,
 )
