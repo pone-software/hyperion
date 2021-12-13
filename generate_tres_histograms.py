@@ -49,8 +49,6 @@ if __name__ == "__main__":
     hists = []
     inp_data = []
 
-    binning = np.linspace(-30, 500, 530)
-
     ref_index_func = cascadia_ref_index_func
     abs_len = make_cascadia_abs_len_func(sca_len_func_antares)
     path_to_wl_file = os.path.join(os.path.dirname(__file__), "data/DOMEfficiency.dat")
@@ -59,6 +57,9 @@ if __name__ == "__main__":
     def c_medium_f(wl):
         """Speed of light in medium for wl (nm)."""
         return Constants.BaseConstants.c_vac / cascadia_ref_index_func(wl)
+
+    max_time = 300 / c_medium_f(700) * 1e9 + 500
+    binning = np.arange(0, max_time)
 
     for i in range(len(det_ph)):
         sim_data = det_ph[i]
@@ -78,8 +79,9 @@ if __name__ == "__main__":
         wl_weight = wl_acc(wavelengths, 0.28)
 
         # For time residual use 700nm as reference
-        tres = calc_tres(isec_times, args.det_radius, det_dist, c_medium_f(700) / 1e9)
+        # tres = calc_tres(isec_times, args.det_radius, det_dist, c_medium_f(700) / 1e9)
 
+        tres = isec_times
         """
         if args.tts > 0:
             tres += rstate.normal(0, scale=args.tts, size=tres.shape[0])
