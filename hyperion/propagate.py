@@ -69,6 +69,34 @@ def make_photon_sphere_intersection_func(target_x, target_r):
     return photon_sphere_intersection
 
 
+def make_photon_spherical_shell_intersection(shell_center, shell_radius):
+    shell_center = jnp.asarray(shell_center, dtype=jnp.float32)
+    shell_radius = jnp.float32(shell_radius)
+
+    def photon_spherical_shell_intersection(photon_x, photon_p, step_size):
+        p_normed = jnp.asarray(photon_p, dtype=jnp.float32)  # assume normed
+
+        a = jnp.dot(p_normed, (photon_x - shell_center))
+        b = a ** 2 - (jnp.linalg.norm(photon_x - shell_center) ** 2 - shell_radius ** 2)
+
+        # Distance of of the intersection point along the line
+        d = -a + jnp.sqrt(b)
+
+        isected = (b >= 0) & (d > 0) & (d < step_size)
+
+        # need to check intersection here, otherwise nan-gradients (sqrt(b) if b < 0)
+        result = cond(
+            isected,
+            lambda _: (True, photon_x + d * p_normed),
+            lambda _: (False, jnp.ones(3, dtype=jnp.float32) * 1e8),
+            0,
+        )
+
+        return result
+
+    return photon_spherical_shell_intersection
+
+
 def photon_plane_intersection(photon_x, photon_p, target_x, target_r, step_size):
     """
     Intersection of line and plane.
@@ -317,10 +345,31 @@ def initialize_direction_isotropic(rng_key):
     return direction
 
 
+def initialize_direction_led(rng_key):
+    k1, k2 = random.split(rng_key, 2)
+    theta = jnp.arcsin(random.uniform(k1))
+    phi = random.uniform(k2, minval=0, maxval=2 * np.pi)
+
+    direction = sph_to_cart(theta, phi, r=1)
+
+    return direction
+
+
 def initialize_direction_laser(rng_key):
     """Return e_z."""
     direction = jnp.array([0.0, 0.0, 1.0])
     return direction
+
+
+def make_initialize_position_sphere(sphere_pos, sphere_radius):
+    def initialize_position_sphere(rng_key):
+        direc_vec = initialize_direction_isotropic(rng_key)
+
+        pos = sphere_pos + direc_vec * sphere_radius
+
+        return pos
+
+    return initialize_position_sphere
 
 
 def make_monochromatic_initializer(wavelength):
@@ -333,36 +382,6 @@ def make_monochromatic_initializer(wavelength):
 
 
 wl_mono_400nm_init = make_monochromatic_initializer(400)
-
-
-def make_loop_until_isec_or_maxtime(max_time):
-    """Make function that will call the step_function until either the photon intersetcs or max_time is reached."""
-
-    def loop_until_isec_or_maxtime(step_function, initial_photon_state, rng_key):
-        final_photon_state, _ = while_loop(
-            lambda args: (args[0]["isec"] == False)  # noqa: E712
-            & (args[0]["time"] < max_time),
-            unpack_args(step_function),
-            (initial_photon_state, rng_key),
-        )
-        return final_photon_state
-
-    return loop_until_isec_or_maxtime
-
-
-def make_loop_for_n_steps(n_steps):
-    """Make function that calls step_function n_steps times."""
-
-    def loop_for_nsteps(step_function, initial_photon_state, rng_key):
-        final_photon_state, _ = fori_loop(
-            0,
-            n_steps,
-            lambda i, args: unpack_args(step_function)(args),
-            (initial_photon_state, rng_key),
-        )
-        return final_photon_state
-
-    return loop_for_nsteps
 
 
 def make_fixed_pos_time_initializer(
@@ -396,6 +415,69 @@ def make_fixed_pos_time_initializer(
         return initial_photon_state
 
     return init
+
+
+def make_fixed_time_initializer(initial_time, pos_init, dir_init, wavelength_init):
+    """
+    Initialize with a fixed time, sample for position, direction and wavelength.
+
+    initial_pos: float[3]
+        Position vector of the emitter
+    initial_time: float
+        Emitter time
+    pos_init: function
+        Position initializer
+    dir_init: function
+        Emission direction initializer
+    wavelength_init: function
+        wavelength initializer
+    """
+
+    def init(rng_key):
+        k1, k2, k3 = random.split(rng_key, 3)
+
+        # Set initial photon state
+        initial_photon_state = {
+            "pos": jnp.asarray(pos_init(k1), dtype=jnp.float32),
+            "dir": dir_init(k2),
+            "time": jnp.float32(initial_time),
+            "isec": False,
+            "stepcnt": jnp.int32(0),
+            "wavelength": wavelength_init(k3),
+        }
+        return initial_photon_state
+
+    return init
+
+
+def make_loop_until_isec_or_maxtime(max_time):
+    """Make function that will call the step_function until either the photon intersetcs or max_time is reached."""
+
+    def loop_until_isec_or_maxtime(step_function, initial_photon_state, rng_key):
+        final_photon_state, _ = while_loop(
+            lambda args: (args[0]["isec"] == False)  # noqa: E712
+            & (args[0]["time"] < max_time),
+            unpack_args(step_function),
+            (initial_photon_state, rng_key),
+        )
+        return final_photon_state
+
+    return loop_until_isec_or_maxtime
+
+
+def make_loop_for_n_steps(n_steps):
+    """Make function that calls step_function n_steps times."""
+
+    def loop_for_nsteps(step_function, initial_photon_state, rng_key):
+        final_photon_state, _ = fori_loop(
+            0,
+            n_steps,
+            lambda i, args: unpack_args(step_function)(args),
+            (initial_photon_state, rng_key),
+        )
+        return final_photon_state
+
+    return loop_for_nsteps
 
 
 def make_photon_trajectory_fun(
@@ -437,7 +519,7 @@ def make_photon_trajectory_fun(
 
         final_photon_state = loop_func(step_function, initial_photon_state, k2)
 
-        return final_photon_state
+        return initial_photon_state, final_photon_state
 
     return make_steps
 
@@ -446,7 +528,8 @@ def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=1e7):
     """Run photon prop multiple times and collect hits."""
     key = random.PRNGKey(seed)
     isec_times = []
-    ph_thetas = []
+    em_thetas = []
+    ar_thetas = []
     stepss = []
     nphotons = int(nphotons)
     isec_poss = []
@@ -457,15 +540,16 @@ def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=1e7):
 
     for i in range(nsims):
         key, subkey = random.split(key)
-        photon_state = traj_func(random.split(key, num=nphotons))
+        initial_state, final_state = traj_func(random.split(key, num=nphotons))
 
-        isecs = photon_state["isec"]
+        isecs = final_state["isec"]
 
-        isec_times.append(np.asarray(photon_state["time"][isecs]))
-        stepss.append(np.asarray(photon_state["stepcnt"][isecs]))
-        ph_thetas.append(np.asarray(jnp.arccos(photon_state["dir"][isecs, 2])))
-        isec_poss.append(np.asarray(photon_state["pos"][isecs]))
-        wavelengths.append(np.asarray(photon_state["wavelength"][isecs]))
+        isec_times.append(np.asarray(final_state["time"][isecs]))
+        stepss.append(np.asarray(final_state["stepcnt"][isecs]))
+        ar_thetas.append(np.asarray(jnp.arccos(final_state["dir"][isecs, 2])))
+        em_thetas.append(np.asarray(jnp.arccos(initial_state["dir"][isecs, 2])))
+        isec_poss.append(np.asarray(final_state["pos"][isecs]))
+        wavelengths.append(np.asarray(final_state["wavelength"][isecs]))
 
         sims_cnt = i
         total_detected_photons += jnp.sum(isecs)
@@ -473,9 +557,10 @@ def collect_hits(traj_func, nphotons, nsims, seed=0, sim_limit=1e7):
             break
 
     isec_times = np.concatenate(isec_times)
-    ph_thetas = np.concatenate(ph_thetas)
+    ar_thetas = np.concatenate(ar_thetas)
+    em_thetas = np.concatenate(em_thetas)
     stepss = np.concatenate(stepss)
     isec_poss = np.vstack(isec_poss)
     wavelengths = np.concatenate(wavelengths)
 
-    return isec_times, ph_thetas, stepss, isec_poss, sims_cnt, wavelengths
+    return isec_times, ar_thetas, em_thetas, stepss, isec_poss, sims_cnt, wavelengths
