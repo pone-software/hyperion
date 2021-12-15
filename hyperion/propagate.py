@@ -97,41 +97,51 @@ def make_photon_spherical_shell_intersection(shell_center, shell_radius):
     return photon_spherical_shell_intersection
 
 
-def photon_plane_intersection(photon_x, photon_p, target_x, target_r, step_size):
-    """
-    Intersection of line and plane.
+def make_photon_circle_intersection(circle_center, circle_normal, circle_r):
 
-    iven a photon origin, a photon direction, a step size, a target location and a target radius,
-    calculate whether the photon intersects the target and the intersection point.
+    circle_center = jnp.asarray(circle_center, dtype=jnp.float32)
+    circle_normal = jnp.asarray(circle_normal, dtype=jnp.float32)
+    circle_r = jnp.float32(circle_r)
 
-    Parameters:
-        photon_x: float[3]
-        photon_p: float[3]
-        target_x: float[3]
-        target_r: float
-        step_size: float
+    def photon_circle_intersection(photon_x, photon_p, step_size):
+        """
+        Intersection of line and plane.
 
-    Returns:
-        tuple(bool, float[3])
-            True and intersection position if intersected.
-    """
-    # assume plane normal vector is e_z
+        iven a photon origin, a photon direction, a step size, a target location and a target radius,
+        calculate whether the photon intersects the target and the intersection point.
 
-    plane_normal = jnp.array([0, 0, 1])
+        Parameters:
+            photon_x: float[3]
+            photon_p: float[3]
+            step_size: float
 
-    p_n = jnp.dot(photon_p, plane_normal)
-    d = jnp.dot((target_x[2] - photon_x[2]), plane_normal) / p_n
-    isec_p = photon_x + d * photon_p
-    result = cond(
-        (p_n != 0)
-        & (d > 0)
-        & (d <= step_size)
-        & (jnp.all(jnp.abs((isec_p - target_x)[:2]) < target_r)),
-        lambda _: (True, isec_p),
-        lambda _: (False, jnp.ones(3) * 1e8),
-        None,
-    )
-    return result
+        Returns:
+            tuple(bool, float[3])
+                True and intersection position if intersected.
+        """
+        # assume plane normal vector is e_z
+
+        photon_p = jnp.asarray(photon_p, dtype=jnp.float32)
+        p_n = jnp.dot(photon_p, circle_normal)
+        d = jnp.where(
+            p_n == 0,
+            jnp.dot((circle_center - photon_x), circle_normal),
+            jnp.dot((circle_center - photon_x), circle_normal) / p_n,
+        )
+
+        isec_p = photon_x + d * photon_p
+
+        dist_in_plane = jnp.linalg.norm(circle_center - isec_p)
+
+        result = jax.lax.cond(
+            (d > 0) & (d <= step_size) & (dist_in_plane < circle_r),
+            lambda _: (True, isec_p),
+            lambda _: (False, jnp.ones(3, dtype=jnp.float32) * 1e8),
+            None,
+        )
+        return result
+
+    return photon_circle_intersection
 
 
 def frank_tamm(wavelength, ref_index_func):
@@ -355,10 +365,12 @@ def initialize_direction_led(rng_key):
     return direction
 
 
-def initialize_direction_laser(rng_key):
-    """Return e_z."""
-    direction = jnp.array([0.0, 0.0, 1.0])
-    return direction
+def make_initialize_direction_laser(direction):
+    def initialize_direction_laser(rng_key):
+        """Return e_z."""
+        return direction
+
+    return initialize_direction_laser
 
 
 def make_initialize_position_sphere(sphere_pos, sphere_radius):
@@ -469,10 +481,19 @@ def make_loop_for_n_steps(n_steps):
     """Make function that calls step_function n_steps times."""
 
     def loop_for_nsteps(step_function, initial_photon_state, rng_key):
+        def noop_if_not_alive(state, rng_key):
+            out = cond(
+                state["isec"],
+                lambda args: args,
+                unpack_args(step_function),
+                (state, rng_key),
+            )
+            return out
+
         final_photon_state, _ = fori_loop(
             0,
             n_steps,
-            lambda i, args: unpack_args(step_function)(args),
+            lambda i, args: unpack_args(noop_if_not_alive)(args),
             (initial_photon_state, rng_key),
         )
         return final_photon_state
