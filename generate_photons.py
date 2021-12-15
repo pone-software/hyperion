@@ -42,7 +42,7 @@ parser.add_argument(
     "--photons_per_batch", type=float, required=False, dest="ph_per_batch", default=1e7
 )
 parser.add_argument(
-    "--n_photon_batches", type=int, required=False, dest="n_ph_batches", default=10000
+    "--n_photon_batches", type=int, required=False, dest="n_ph_batches", default=5000
 )
 parser.add_argument(
     "--max_dist", type=float, required=False, dest="max_dist", default=500
@@ -110,7 +110,7 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
     )
     trajec_fun_v = jit(vmap(trajec_fun, in_axes=[0]))
 
-    times, emission_angles, steps, positions, sims_cnt, wavelengths = collect_hits(
+    times, arrival_angles, emission_angles, steps, positions, sims_cnt, wavelengths = collect_hits(
         trajec_fun_v, args.ph_per_batch, args.n_ph_batches, args.seed
     )
 
@@ -118,6 +118,7 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
         {
             "dist": det_dist,
             "times_det": times,
+            "arrival_angles":, arrival_angles,
             "emission_angles": emission_angles,
             "photon_steps": steps,
             "positions_det": positions,
