@@ -58,8 +58,10 @@ if __name__ == "__main__":
         """Speed of light in medium for wl (nm)."""
         return Constants.BaseConstants.c_vac / cascadia_ref_index_func(wl)
 
-    max_time = 300 / c_medium_f(700) * 1e9 + 500
-    binning = np.arange(0, max_time)
+    # max_time = 300 / c_medium_f(700) * 1e9 + 500
+    binning = np.concatenate(
+        [np.linspace(0, 10, 11), np.logspace(1, np.log10(500), 25)[1:]]
+    )
 
     for i in range(len(det_ph)):
         sim_data = det_ph[i]
@@ -79,9 +81,9 @@ if __name__ == "__main__":
         wl_weight = wl_acc(wavelengths, 0.28)
 
         # For time residual use 700nm as reference
-        # tres = calc_tres(isec_times, args.det_radius, det_dist, c_medium_f(700) / 1e9)
+        tres = calc_tres(isec_times, args.det_radius, det_dist, c_medium_f(700) / 1e9)
 
-        tres = isec_times
+        # tres = isec_times
         """
         if args.tts > 0:
             tres += rstate.normal(0, scale=args.tts, size=tres.shape[0])
@@ -97,7 +99,7 @@ if __name__ == "__main__":
             tot_weight = abs_weight * c_weight * wl_weight / nphotons_sim
 
             if args.tts > 0:
-                split_len = int(1e5)
+                split_len = int(1e6)
                 splits = int(np.ceil(len(tres) / split_len))
                 eval_cdf = 0
                 for nsplit in range(splits):
