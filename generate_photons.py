@@ -118,7 +118,7 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
         {
             "dist": det_dist,
             "times_det": times,
-            "arrival_angles":, arrival_angles,
+            "arrival_angles": arrival_angles,
             "emission_angles": emission_angles,
             "photon_steps": steps,
             "positions_det": positions,
