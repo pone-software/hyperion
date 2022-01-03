@@ -4,38 +4,25 @@ import numpy as np
 class SimpleDataset(object):
     """Simple Dataset subclass that returns a tuple (input, output)."""
 
-    def __init__(self, inputs, outputs, mask=None, sanitize=True):
+    def __init__(self, *arrays):
         super(SimpleDataset, self).__init__()
-        self._inputs = inputs
-        self._outputs = outputs
-        self._sanitize = sanitize
-        self._mask = mask
+        self._arrays = arrays
 
-        if len(self._inputs) != len(self._outputs):
-            raise ValueError("Inputs and outputs must have same length.")
+        self._len = len(arrays[0])
 
-        self._len = len(self._inputs)
+        for arr in arrays:
+            if len(arr) != self._len:
+                raise ValueError("Inputs and outputs must have same length.")
 
     def __getitem__(self, idx):
         """Return tuple of input, output."""
-        out = self._outputs[idx]
 
         if isinstance(idx, int):
             idx = [idx]
 
-        if self._sanitize:
-            if self._mask is not None:
-                mask = self._mask
-            else:
-                mask = np.isfinite(out)
-            out[~mask] = 0
-            return (
-                np.atleast_2d(self._inputs[idx]),
-                np.atleast_2d(out),
-                np.atleast_2d(mask),
-            )
+        outs = [np.atleast_2d(arr[idx]) for arr in self._arrays]
 
-        return np.atleast_2d(self._inputs[idx]), np.atleast_2d(out)
+        return outs
 
     def __len__(self):
         return self._len

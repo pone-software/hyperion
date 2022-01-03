@@ -20,7 +20,7 @@ def sph_to_cart(theta, phi=0, r=1):
     return jnp.array([x, y, z])
 
 
-def make_photon_sphere_intersection_func(target_x, target_r):
+def make_photon_sphere_intersection_func(target_x, target_r, dtype=jnp.float64):
     """
     Make a function that calculates the intersection of a photon path with a sphere.
 
@@ -28,8 +28,8 @@ def make_photon_sphere_intersection_func(target_x, target_r):
         target_x: float[3]
         target_r: float
     """
-    target_x = jnp.asarray(target_x, dtype=jnp.float32)
-    target_r = jnp.float32(target_r)
+    target_x = jnp.asarray(target_x, dtype=dtype)
+    target_r = dtype(target_r)
 
     def photon_sphere_intersection(photon_x, photon_p, step_size):
         """
@@ -47,7 +47,7 @@ def make_photon_sphere_intersection_func(target_x, target_r):
             tuple(bool, float[3])
                 True and intersection position if intersected.
         """
-        p_normed = jnp.asarray(photon_p, dtype=jnp.float32)  # assume normed
+        p_normed = jnp.asarray(photon_p, dtype=dtype)  # assume normed
 
         a = jnp.dot(p_normed, (photon_x - target_x))
         b = a ** 2 - (jnp.linalg.norm(photon_x - target_x) ** 2 - target_r ** 2)
@@ -60,7 +60,7 @@ def make_photon_sphere_intersection_func(target_x, target_r):
         result = cond(
             isected,
             lambda _: (True, photon_x + d * p_normed),
-            lambda _: (False, jnp.ones(3, dtype=jnp.float32) * 1e8),
+            lambda _: (False, jnp.ones(3, dtype=dtype) * 1e8),
             0,
         )
 
@@ -69,12 +69,12 @@ def make_photon_sphere_intersection_func(target_x, target_r):
     return photon_sphere_intersection
 
 
-def make_photon_spherical_shell_intersection(shell_center, shell_radius):
-    shell_center = jnp.asarray(shell_center, dtype=jnp.float32)
-    shell_radius = jnp.float32(shell_radius)
+def make_photon_spherical_shell_intersection(shell_center, shell_radius, dtype=jnp.float64):
+    shell_center = jnp.asarray(shell_center, dtype=dtype)
+    shell_radius = dtype(shell_radius)
 
     def photon_spherical_shell_intersection(photon_x, photon_p, step_size):
-        p_normed = jnp.asarray(photon_p, dtype=jnp.float32)  # assume normed
+        p_normed = jnp.asarray(photon_p, dtype=dtype)  # assume normed
 
         a = jnp.dot(p_normed, (photon_x - shell_center))
         b = a ** 2 - (jnp.linalg.norm(photon_x - shell_center) ** 2 - shell_radius ** 2)
@@ -88,7 +88,7 @@ def make_photon_spherical_shell_intersection(shell_center, shell_radius):
         result = cond(
             isected,
             lambda _: (True, photon_x + d * p_normed),
-            lambda _: (False, jnp.ones(3, dtype=jnp.float32) * 1e8),
+            lambda _: (False, jnp.ones(3, dtype=dtype) * 1e8),
             0,
         )
 
@@ -97,11 +97,11 @@ def make_photon_spherical_shell_intersection(shell_center, shell_radius):
     return photon_spherical_shell_intersection
 
 
-def make_photon_circle_intersection(circle_center, circle_normal, circle_r):
+def make_photon_circle_intersection(circle_center, circle_normal, circle_r, dtype=jnp.float64):
 
-    circle_center = jnp.asarray(circle_center, dtype=jnp.float32)
-    circle_normal = jnp.asarray(circle_normal, dtype=jnp.float32)
-    circle_r = jnp.float32(circle_r)
+    circle_center = jnp.asarray(circle_center, dtype=dtype)
+    circle_normal = jnp.asarray(circle_normal, dtype=dtype)
+    circle_r = dtype(circle_r)
 
     def photon_circle_intersection(photon_x, photon_p, step_size):
         """
@@ -121,7 +121,7 @@ def make_photon_circle_intersection(circle_center, circle_normal, circle_r):
         """
         # assume plane normal vector is e_z
 
-        photon_p = jnp.asarray(photon_p, dtype=jnp.float32)
+        photon_p = jnp.asarray(photon_p, dtype=dtype)
         p_n = jnp.dot(photon_p, circle_normal)
         d = jnp.where(
             p_n == 0,
@@ -136,7 +136,7 @@ def make_photon_circle_intersection(circle_center, circle_normal, circle_r):
         result = jax.lax.cond(
             (d > 0) & (d <= step_size) & (dist_in_plane < circle_r),
             lambda _: (True, isec_p),
-            lambda _: (False, jnp.ones(3, dtype=jnp.float32) * 1e8),
+            lambda _: (False, jnp.ones(3, dtype=dtype) * 1e8),
             None,
         )
         return result
@@ -159,7 +159,7 @@ def frank_tamm(wavelength, ref_index_func):
     )
 
 
-def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func):
+def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func, dtype=jnp.float64):
     """
     Make a sampling function that samples from the Frank-Tamm formula in a given wavelength range.
 
@@ -177,11 +177,11 @@ def make_cherenkov_spectral_sampling_func(wl_range, ref_index_func):
     )[0]
     norm = integral(wl_range[-1])
     poly_pars = jnp.asarray(
-        np.polyfit(np.vectorize(integral)(wls) / norm, wls, 10), dtype=jnp.float32
+        np.polyfit(np.vectorize(integral)(wls) / norm, wls, 10), dtype=dtype
     )
 
     def sampling_func(rng_key):
-        uni = random.uniform(rng_key, dtype=jnp.float32)
+        uni = random.uniform(rng_key, dtype=dtype)
         return jnp.polyval(poly_pars, uni)
 
     return sampling_func
@@ -245,6 +245,7 @@ def make_step_function(
     scattering_function,
     scattering_length_function,
     ref_index_func,
+    dtype=jnp.float64
 ):
     """
     Make a photon step function object.
@@ -263,7 +264,6 @@ def make_step_function(
             function that returns the refractive index as function of wavelength
     """
 
-    @functools.partial(jax.profiler.annotate_function, name="step_function")
     def step(photon_state, rng_key):
         """Single photon step."""
         pos = photon_state["pos"]
@@ -284,8 +284,8 @@ def make_step_function(
         step_size = -jnp.log(eta) / sca_coeff
 
         dstep = step_size * dir
-        new_pos = jnp.asarray(pos + dstep, dtype=jnp.float32)
-        new_time = jnp.float32(time + step_size / c_medium)
+        new_pos = jnp.asarray(pos + dstep, dtype=dtype)
+        new_time = dtype(time + step_size / c_medium)
 
         # Calculate intersection
         isec, isec_pos = intersection_f(
@@ -294,7 +294,7 @@ def make_step_function(
             step_size,
         )
 
-        isec_time = jnp.float32(time + jnp.linalg.norm(pos - isec_pos) / c_medium)
+        isec_time = dtype(time + jnp.linalg.norm(pos - isec_pos) / c_medium)
 
         # If intersected, set position to intersection position
         new_pos = cond(
@@ -397,7 +397,7 @@ wl_mono_400nm_init = make_monochromatic_initializer(400)
 
 
 def make_fixed_pos_time_initializer(
-    initial_pos, initial_time, dir_init, wavelength_init
+    initial_pos, initial_time, dir_init, wavelength_init, dtype=jnp.float64
 ):
     """
     Initialize with fixed position and time and sample for direction and wavelength.
@@ -417,9 +417,9 @@ def make_fixed_pos_time_initializer(
 
         # Set initial photon state
         initial_photon_state = {
-            "pos": jnp.asarray(initial_pos, dtype=jnp.float32),
+            "pos": jnp.asarray(initial_pos, dtype=dtype),
             "dir": dir_init(k1),
-            "time": jnp.float32(initial_time),
+            "time": dtype(initial_time),
             "isec": False,
             "stepcnt": jnp.int32(0),
             "wavelength": wavelength_init(k2),
@@ -450,9 +450,9 @@ def make_fixed_time_initializer(initial_time, pos_init, dir_init, wavelength_ini
 
         # Set initial photon state
         initial_photon_state = {
-            "pos": jnp.asarray(pos_init(k1), dtype=jnp.float32),
+            "pos": jnp.asarray(pos_init(k1), dtype=dtype),
             "dir": dir_init(k2),
-            "time": jnp.float32(initial_time),
+            "time": dtype(initial_time),
             "isec": False,
             "stepcnt": jnp.int32(0),
             "wavelength": wavelength_init(k3),

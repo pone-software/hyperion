@@ -1,6 +1,5 @@
-import functools
 import pickle
-
+import functools
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -53,14 +52,26 @@ def make_eval_forward_fn(conf):
     return forward_fn
 
 
+def make_logp1_trafo(scale):
+    def trafo(data):
+        return np.log(data * scale + 1)
+
+    def rev_trafo(data):
+        return jnp.exp(data - 1) / scale
+
+    return trafo, rev_trafo
+
+
 def make_net_eval_from_pickle(path):
-    params, state, conf, binning = pickle.load(open(path, "rb"))
+    (params, state, conf, binning, trafo_scale) = pickle.load(open(path, "rb"))
     forward_fn = make_eval_forward_fn(conf)
     net = hk.transform_with_state(forward_fn)
 
+    _, rev_trafo = make_logp1_trafo(trafo_scale)
+
     @jax.jit
     def net_eval_fn(x):
-        return net.apply(params, state, None, x)[0]
+        return rev_trafo(net.apply(params, state, None, x)[0])
 
     return net_eval_fn, binning
 
@@ -118,11 +129,11 @@ def train_net(conf, train_data, test_data, writer, rng):
         )
         roughness = ((jnp.diff(first_diff_n, axis=1) ** 2) / 4).sum()
 
-        roughness_weight = 1
+        roughness_weight = 0
 
         return 1 / (roughness_weight + 1) * (mse + roughness_weight * roughness)
 
-    # @functools.partial(jax.jit, static_argnums=[5])
+    @functools.partial(jax.jit, static_argnums=[5])
     def get_updates(params, state, rng_key, opt_state, batch, is_training):
         """Learning rule (stochastic gradient descent)."""
         l, grads = jax.value_and_grad(loss)(
@@ -177,6 +188,8 @@ def train_net(conf, train_data, test_data, writer, rng):
         test_loss /= len(test_data)
 
         hparam_dict = dict(conf)
+        if "final_activations" in hparam_dict:
+            del hparam_dict["final_activations"]
         writer.add_hparams(hparam_dict, {"hparam/test_loss": np.asarray(test_loss)})
         writer.flush()
         writer.close()
