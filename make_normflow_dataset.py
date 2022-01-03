@@ -1,3 +1,4 @@
+import os
 import pickle
 from argparse import ArgumentParser
 
@@ -16,7 +17,7 @@ from hyperion.utils import (
 
 ref_index_func = cascadia_ref_index_func
 abs_len = make_cascadia_abs_len_func(sca_len_func_antares)
-path_to_wl_file = "data/DOMEfficiency.dat"
+path_to_wl_file = os.path.join(os.path.dirname(__file__), "data/DOMEfficiency.dat")
 wl_acc = make_calc_wl_acceptance_weight(path_to_wl_file)
 
 
@@ -30,7 +31,6 @@ def make_dataset(files, seed, tts=2):
     rstate = np.random.RandomState(seed)
 
     all_times = []
-    all_weights = []
     all_dists = []
     all_angls = []
 
