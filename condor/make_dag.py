@@ -33,3 +33,11 @@ with open("generate_photons_third.dag", "w") as hdl:
             hdl.write(
                 f'VARS {i}_hist_{tts} infile="photon_table_{i}.pickle" outfile="photon_hists_{i}_{tts}.pickle" seed="{i}" tts="{tts}"\n'
             )
+
+with open("generate_photons_fourth.dag", "w") as hdl:
+    for i, dist in enumerate(dists):
+        for tts in [0, 1, 2]:
+            hdl.write(f"JOB {i}_hist_{tts} submit_nflow_ds.sub\n")
+            hdl.write(
+                f'VARS {i}_hist_{tts} infile="photon_table_{i}.pickle" outfile="photon_nflow_ds_{i}_{tts}.pickle" seed="{i}" tts="{tts}"\n'
+            )

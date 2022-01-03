@@ -27,7 +27,7 @@ def c_medium_f(wl):
 
 def make_dataset(files, seed, tts=2):
 
-    rstate = np.random.RandomState(0)
+    rstate = np.random.RandomState(seed)
 
     all_times = []
     all_weights = []
