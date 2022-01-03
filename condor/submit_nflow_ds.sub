@@ -1,0 +1,13 @@
++SingularityImage = "/data/p-one/chaack/container/pytorch-geo.sif"
+executable = /bin/env
+arguments = python /data/p-one/chaack/hyperion/make_normflow_dataset.py -i $(infile) -o $(outfile) -s $(seed) --tts $(tts)
+Requirements = HasSingularity
+request_gpus = 0
+log = logs/log
+output = logs/out_nflow_ds.$(CLUSTER)
+error = logs/err_nflow_ds.$(CLUSTER)
+
+when_to_transfer_output = on_exit
+should_transfer_files = yes
+transfer_input_files = $(infile)
+queue 1
