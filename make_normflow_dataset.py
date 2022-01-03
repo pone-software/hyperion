@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 
 import numpy as np
 from scipy.stats import qmc
+import scipy.stats
 
 from hyperion.constants import Constants
 from hyperion.medium import cascadia_ref_index_func, sca_len_func_antares
@@ -79,8 +80,14 @@ def make_dataset(files, seed, tts=2):
             times = tres[surv_ph]
 
             if tts > 0:
-                times += rstate.normal(0, tts, size=len(surv_ph))
 
+                a = 20
+                b = np.sqrt(tts ** 2 / a)
+                mean = a * b
+                pdf = scipy.stats.gamma(a, scale=b)
+
+                dt = pdf.rvs(size=len(surv_ph), random_state=rstate) - mean
+                times += dt
             all_times.append(times)
             all_dists.append(np.ones_like(surv_ph) * det_dist)
             all_angls.append(np.ones_like(surv_ph) * obs_ang)
