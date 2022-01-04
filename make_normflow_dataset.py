@@ -85,7 +85,7 @@ def make_dataset(files, seed, tt=20, tts=2):
                 b = tts ** 2 / tt
                 pdf = scipy.stats.gamma(a, scale=b)
 
-                dt = pdf.rvs(size=len(surv_ph), random_state=rstate) - mean
+                dt = pdf.rvs(size=len(surv_ph), random_state=rstate)
                 times += dt
             all_times.append(times)
             all_dists.append(np.ones_like(surv_ph) * det_dist)
