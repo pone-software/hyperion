@@ -27,7 +27,7 @@ def c_medium_f(wl):
     return Constants.BaseConstants.c_vac / cascadia_ref_index_func(wl)
 
 
-def make_dataset(files, seed, tt=20, tts=2):
+def make_dataset(files, seed, tt=4, tts=1.45):
 
     rstate = np.random.RandomState(seed)
 
@@ -85,7 +85,7 @@ def make_dataset(files, seed, tt=20, tts=2):
                 b = tts ** 2 / tt
                 pdf = scipy.stats.gamma(a, scale=b)
 
-                dt = pdf.rvs(size=len(surv_ph), random_state=rstate)
+                dt = pdf.rvs(size=len(surv_ph), random_state=rstate) - tt
                 times += dt
             all_times.append(times)
             all_dists.append(np.ones_like(surv_ph) * det_dist)
