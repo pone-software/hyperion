@@ -34,7 +34,7 @@ def make_dataset(files, seed, tt=4, tts=1.45):
     all_times = []
     all_dists = []
     all_angls = []
-    all_nphotons = []
+    all_nphotons_frac = []
 
     for file in files:
         data = pickle.load(open(file, "rb"))
@@ -48,7 +48,7 @@ def make_dataset(files, seed, tt=4, tts=1.45):
         ph_thetas = sim_data["emission_angles"]
         # stepss = sim_data["photon_steps"]
         # isec_poss = sim_data["positions_det"]
-        # nphotons_sim = sim_data["nphotons_sim"]
+        nphotons_sim = sim_data["nphotons_sim"]
         wavelengths = sim_data["wavelengths"]
 
         prop_dist = isec_times * c_medium_f(wavelengths) / 1e9
@@ -92,15 +92,18 @@ def make_dataset(files, seed, tt=4, tts=1.45):
             all_dists.append(np.ones_like(surv_ph) * det_dist)
             all_angls.append(np.ones_like(surv_ph) * obs_ang)
 
-            all_nphotons.append([det_dist, obs_ang, sum_w])
+            all_nphotons_frac.append([det_dist, obs_ang, sum_w / nphotons_sim])
 
-    return np.vstack(
-        [
-            np.concatenate(all_times),
-            # np.concatenate(all_weights),
-            np.concatenate(all_dists),
-            np.concatenate(all_angls),
-        ]
+    return (
+        np.vstack(
+            [
+                np.concatenate(all_times),
+                # np.concatenate(all_weights),
+                np.concatenate(all_dists),
+                np.concatenate(all_angls),
+            ]
+        ),
+        all_nphotons_frac,
     )
 
 
