@@ -2,4 +2,4 @@
 Light-weight photon propagation implemented in jax.
 
 ## Quickstart
-`propagate_photons.py` shows an example of how to propagate photons
+`examples/photon_propagation.ipynb shows an example of how to propagate photons.

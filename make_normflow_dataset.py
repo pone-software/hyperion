@@ -34,6 +34,7 @@ def make_dataset(files, seed, tt=4, tts=1.45):
     all_times = []
     all_dists = []
     all_angls = []
+    all_nphotons = []
 
     for file in files:
         data = pickle.load(open(file, "rb"))
@@ -90,6 +91,8 @@ def make_dataset(files, seed, tt=4, tts=1.45):
             all_times.append(times)
             all_dists.append(np.ones_like(surv_ph) * det_dist)
             all_angls.append(np.ones_like(surv_ph) * obs_ang)
+
+            all_nphotons.append([det_dist, obs_ang, sum_w])
 
     return np.vstack(
         [
