@@ -4,8 +4,7 @@ from argparse import ArgumentParser
 
 parser = ArgumentParser()
 parser.add_argument("-i", "--infiles", dest="infiles", nargs="+", required=True)
-parser.add_argument("--outfile_times", dest="outfile_data", required=True)
-parser.add_argument("--outfile_counts", dest="outfile_counts", required=True)
+parser.add_argument("-o", "--outfile", dest="outfile", required=True)
 parser.add_argument("-s", "--seed", dest="seed", type=int, required=True)
 args = parser.parse_args()
 
@@ -20,6 +19,6 @@ for f in args.infiles:
     data.append(indata[:, choice])
     all_photon_counts.append(np.concatenate(photon_counts))
 data = np.hstack(data)
-
-np.savez(args.outfile_data, data)
-pickle.dump(np.concatenate(all_photon_counts), open(args.outfile_counts, "wb"))
+all_photon_counts = np.concatenate(all_photon_counts)
+print(all_photon_counts.shape)
+np.savez(args.outfile, times=data, counts=all_photon_counts)
