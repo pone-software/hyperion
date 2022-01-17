@@ -63,10 +63,7 @@ def make_calc_wl_acceptance_weight(path_to_acc_data):
     wl_acc = np.loadtxt(path_to_acc_data)
 
     wl_acc_spl = UnivariateSpline(wl_acc[:, 0] * 1e9, np.log(wl_acc[:, 1]), s=0.1)
-    wl_acc_int = quad(lambda wl: np.exp(wl_acc_spl(wl)), 300, 700)[0]
-
     wlw_peak = scipy.optimize.minimize(lambda wl: -wl_acc_spl(wl), x0=[400]).x
-    peak_qe = 1
 
     val_at_peak = np.exp(wl_acc_spl(wlw_peak))
     wl_acc_spl = UnivariateSpline(

@@ -65,27 +65,63 @@ def randomize_ds(dataset, rng):
     return SubSet(dataset, ixs)
 
 
+def downsample_ds(dataset, fraction, rng, copy=False):
+    subset_len = int(fraction * len(dataset))
+    ixs = np.arange(len(dataset))
+    rng.shuffle(ixs)
+    if copy:
+        return dataset[ixs[:subset_len]]
+
+    return SubSet(dataset, ixs[:subset_len])
+
+
 class DataLoader(object):
     """Dataloader"""
 
-    def __init__(self, dataset, batch_size, rng, shuffle=False):
+    def __init__(self, dataset, batch_size, rng, shuffle=False, infinite=False):
         self._dataset = dataset
         self._batch_size = batch_size
         self._rng = rng
         self._shuffle = shuffle
         self._n_batches = int(np.ceil(len(self._dataset) / self._batch_size))
+        self._infinite = infinite
 
     def __iter__(self):
-        if self._shuffle:
-            ds = randomize_ds(self._dataset, self._rng)
-        else:
-            ds = self._dataset
+        while True:
+            if self._shuffle:
+                ds = randomize_ds(self._dataset, self._rng)
+            else:
+                ds = self._dataset
 
-        for batch in range(self._n_batches):
-            upper = min(len(ds), (batch + 1) * self._batch_size)
-            ixs = np.arange(batch * self._batch_size, upper)
-            yield ds[ixs]
+            for batch in range(self._n_batches):
+                upper = min(len(ds), (batch + 1) * self._batch_size)
+                ixs = np.arange(batch * self._batch_size, upper)
+                yield ds[ixs]
+
+            if not self._infinite:
+                break
 
     @property
     def n_batches(self):
         return self._n_batches
+
+
+class StochasticLoader(object):
+    def __init__(self, dataset, batch_size, rng):
+        self._dataset = dataset
+        self._batch_size = batch_size
+        self._rng = rng
+        # self._n_batches = int(np.ceil(len(self._dataset) / self._batch_size))
+
+    def __iter__(self):
+
+        while True:
+            is_unique = False
+            cnt = 0
+            while not is_unique:
+                ixs = self._rng.randint(0, len(self._dataset), size=self._batch_size)
+                is_unique = len(np.unique(ixs)) == self._batch_size
+                cnt += 1
+                if cnt == 20:
+                    print("Trouble finding unique batch")
+            yield self._dataset[ixs]
