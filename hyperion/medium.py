@@ -79,7 +79,15 @@ mixed_hg_liu_icecube = make_mixed_scattering_func(
 
 
 def make_wl_dep_sca_len_func(vol_conc_small_part, vol_conc_large_part):
-    """Make a function that calculates the scattering length based on particle concentrations."""
+    """
+    Make a function that calculates the scattering length based on particle concentrations.
+    Copied from clsim.
+
+    Parameters:
+        vol_conc_small_part: Volumetric concentration of small particles (ppm)
+        vol_conc_small_part: Volumetric concentration of large particles (ppm)
+
+    """
 
     def sca_len(wavelength):
         ref_wlen = 550  # nm
@@ -96,7 +104,7 @@ def make_wl_dep_sca_len_func(vol_conc_small_part, vol_conc_large_part):
     return sca_len
 
 
-sca_len_func_antares = make_wl_dep_sca_len_func(0.0075e-6, 0.0075e-6)
+sca_len_func_antares = make_wl_dep_sca_len_func(0.0075, 0.0075)
 
 
 def make_ref_index_func(salinity, temperature, pressure):
