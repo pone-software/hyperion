@@ -66,7 +66,7 @@ emitter_x = jnp.array([0, 0, 0.0])
 emitter_t = 0.0
 
 wavelength_init = make_cherenkov_spectral_sampling_func(
-    [300, 700], cascadia_ref_index_func
+    [290, 700], cascadia_ref_index_func
 )
 photon_init = make_fixed_pos_time_initializer(
     emitter_x, emitter_t, initialize_direction_isotropic, wavelength_init
@@ -98,8 +98,10 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
     )
 
     n_steps = calculate_min_number_steps(
-        cascadia_ref_index_func, sca_len_func_antares, det_dist, 500, 300, 0.01
+        cascadia_ref_index_func, sca_len_func_antares, det_dist, 500, 290, 0.01
     )
+
+    print(f"Propagation steps: {n_steps}")
 
     loop_func = make_loop_for_n_steps(n_steps)
 
@@ -110,9 +112,15 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
     )
     trajec_fun_v = jit(vmap(trajec_fun, in_axes=[0]))
 
-    times, arrival_angles, emission_angles, steps, positions, sims_cnt, wavelengths = collect_hits(
-        trajec_fun_v, args.ph_per_batch, args.n_ph_batches, args.seed
-    )
+    (
+        times,
+        arrival_angles,
+        emission_angles,
+        steps,
+        positions,
+        sims_cnt,
+        wavelengths,
+    ) = collect_hits(trajec_fun_v, args.ph_per_batch, args.n_ph_batches, args.seed)
 
     all_data.append(
         {

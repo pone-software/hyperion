@@ -18,7 +18,7 @@ from hyperion.utils import (
 
 ref_index_func = cascadia_ref_index_func
 abs_len = make_cascadia_abs_len_func(sca_len_func_antares)
-path_to_wl_file = os.path.join(os.path.dirname(__file__), "data/DOMEfficiency.dat")
+path_to_wl_file = os.path.join(os.path.dirname(__file__), "data/PMTAcc.csv")
 wl_acc = make_calc_wl_acceptance_weight(path_to_wl_file)
 
 
@@ -53,7 +53,7 @@ def make_dataset(files, seed, tt=4, tts=1.45):
 
         prop_dist = isec_times * c_medium_f(wavelengths) / 1e9
         abs_weight = np.exp(-prop_dist / abs_len(wavelengths))
-        wl_weight = wl_acc(wavelengths, 0.28)
+        wl_weight = wl_acc(wavelengths, 0.27)
         tres = calc_tres(isec_times, 0.21, det_dist, c_medium_f(700) / 1e9)
 
         costhetas = 2 * sampler.random_base2(m=6) - 1

@@ -60,17 +60,24 @@ def make_waveform(
 
 
 def make_calc_wl_acceptance_weight(path_to_acc_data):
-    wl_acc = np.loadtxt(path_to_acc_data)
+    wl_acc = np.loadtxt(path_to_acc_data, delimiter=",")
 
-    wl_acc_spl = UnivariateSpline(wl_acc[:, 0] * 1e9, np.log(wl_acc[:, 1]), s=0.1)
+    zero_mask = wl_acc[:, 1] > 0
+    safe_range = (np.min(wl_acc[zero_mask, 0]), np.max(wl_acc[zero_mask, 0]))
+
+    wl_acc_spl = UnivariateSpline(
+        wl_acc[zero_mask, 0], np.log(wl_acc[zero_mask, 1]), s=0.1
+    )
     wlw_peak = scipy.optimize.minimize(lambda wl: -wl_acc_spl(wl), x0=[400]).x
 
     val_at_peak = np.exp(wl_acc_spl(wlw_peak))
     wl_acc_spl = UnivariateSpline(
-        wl_acc[:, 0] * 1e9, np.log(wl_acc[:, 1] / val_at_peak), s=0.1
+        wl_acc[zero_mask, 0], np.log(wl_acc[zero_mask, 1] / val_at_peak), s=0.08
     )
 
     def calc_wl_acc(wavelength, peak_qe):
+        if np.any((wavelength < safe_range[0]) | (wavelength > safe_range[1])):
+            raise ValueError("Wavelength outside of safe range")
         return np.exp(wl_acc_spl(wavelength)) * peak_qe
 
     return calc_wl_acc

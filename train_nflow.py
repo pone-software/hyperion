@@ -11,10 +11,12 @@ from hyperion.models.photon_arrival_time_nflow.net import (
     train_shape_model,
     train_counts_model,
 )
+from itertools import product
 
-
+"""
 data = np.load("data/norm_flow_dset_1.45tts.npz")["times"]
 # data = pickle.load(open("data/photon_nflow_ds_1_1.45.pickle", "rb"))
+
 
 dset = SimpleDataset(np.log10(data[1, :]), data[2, :], data[0, :])
 
@@ -65,50 +67,58 @@ pickle.dump(
     (config, params), open("data/photon_arrival_time_nflow_params.pickle", "wb")
 )
 
-
+"""
 counts = np.load("data/norm_flow_dset_1.45tts.npz", allow_pickle=True)["counts"]
 counts[1] = np.concatenate(counts[1])
 counts = np.asarray(counts, dtype=np.float64)
 
 dset = SimpleDataset(np.log10(counts[0, :]), counts[1, :], np.log10(counts[2, :]))
-rng = np.random.RandomState(2)
+rng = np.random.RandomState(10)
 
-split = int(0.9 * len(dset))
+split = int(0.8 * len(dset))
 
 train_data, test_data = create_random_split(dset, split, rng)
 
-config = {
-    "mlp_hidden_size": 700,
-    "mlp_num_layers": 3,
-    "lr": 0.05,
-    "batch_size": 200,
-    "steps": 30000,
-}
+lrs = [0.005]
+stepss = [50000]
+bsizes = [300]
+hlsizes = [500]
+numls = [3]
 
-train_loader = DataLoader(
-    train_data,
-    batch_size=config["batch_size"],
-    infinite=True,
-    shuffle=True,
-    rng=rng,
-)
-test_loader = DataLoader(
-    test_data,
-    batch_size=config["batch_size"],
-    shuffle=False,
-    infinite=False,
-    rng=rng,
-)
+for lr, steps, bsize, hlsize, numl in product(lrs, stepss, bsizes, hlsizes, numls):
 
-ident_str = (
-    f"{config['mlp_hidden_size']}"
-    + f"_{config['mlp_num_layers']}_{config['batch_size']}_{config['steps']}_{config['lr']}"
-)
+    config = {
+        "mlp_hidden_size": hlsize,
+        "mlp_num_layers": numl,
+        "lr": lr,
+        "batch_size": bsize,
+        "steps": steps,
+    }
 
-writer = SummaryWriter(f"/tmp/tensorboard/runs/counts_cos_anneal_{ident_str}")
+    train_loader = DataLoader(
+        train_data,
+        batch_size=config["batch_size"],
+        infinite=True,
+        shuffle=True,
+        rng=rng,
+    )
+    test_loader = DataLoader(
+        test_data,
+        batch_size=config["batch_size"],
+        shuffle=False,
+        infinite=False,
+        rng=rng,
+    )
 
-params = train_counts_model(config, train_loader, test_loader, writer=writer)
+    ident_str = (
+        f"{config['mlp_hidden_size']}"
+        + f"_{config['mlp_num_layers']}_{config['batch_size']}_{config['steps']}_{config['lr']}"
+    )
 
-pickle.dump(
-    (config, params), open("data/photon_arrival_time_counts_params.pickle", "wb")
-)
+    writer = SummaryWriter(f"/tmp/tensorboard/runs/counts_cos_anneal_{ident_str}")
+
+    params = train_counts_model(config, train_loader, test_loader, writer=writer)
+
+    pickle.dump(
+        (config, params), open("data/photon_arrival_time_counts_params.pickle", "wb")
+    )

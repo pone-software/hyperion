@@ -69,7 +69,9 @@ def make_photon_sphere_intersection_func(target_x, target_r, dtype=jnp.float64):
     return photon_sphere_intersection
 
 
-def make_photon_spherical_shell_intersection(shell_center, shell_radius, dtype=jnp.float64):
+def make_photon_spherical_shell_intersection(
+    shell_center, shell_radius, dtype=jnp.float64
+):
     shell_center = jnp.asarray(shell_center, dtype=dtype)
     shell_radius = dtype(shell_radius)
 
@@ -97,7 +99,9 @@ def make_photon_spherical_shell_intersection(shell_center, shell_radius, dtype=j
     return photon_spherical_shell_intersection
 
 
-def make_photon_circle_intersection(circle_center, circle_normal, circle_r, dtype=jnp.float64):
+def make_photon_circle_intersection(
+    circle_center, circle_normal, circle_r, dtype=jnp.float64
+):
 
     circle_center = jnp.asarray(circle_center, dtype=dtype)
     circle_normal = jnp.asarray(circle_normal, dtype=dtype)
@@ -245,7 +249,7 @@ def make_step_function(
     scattering_function,
     scattering_length_function,
     ref_index_func,
-    dtype=jnp.float64
+    dtype=jnp.float64,
 ):
     """
     Make a photon step function object.
@@ -429,7 +433,9 @@ def make_fixed_pos_time_initializer(
     return init
 
 
-def make_fixed_time_initializer(initial_time, pos_init, dir_init, wavelength_init):
+def make_fixed_time_initializer(
+    initial_time, pos_init, dir_init, wavelength_init, dtype=jnp.float64
+):
     """
     Initialize with a fixed time, sample for position, direction and wavelength.
 

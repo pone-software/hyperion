@@ -153,9 +153,7 @@ def train_shape_model(config, train_loader, test_loader, seed=1337, writer=None)
 
     prng_seq = hk.PRNGSequence(seed)
 
-    params = avg_params = shape_conditioner.init(
-        next(prng_seq), jnp.ones((1, 2)), jnp.ones((1))
-    )
+    params = avg_params = shape_conditioner.init(next(prng_seq), jnp.ones((1, 2)))
     opt_state = optimizer.init(params)
 
     log_every = 100
@@ -267,4 +265,18 @@ def train_counts_model(config, train_loader, test_loader, seed=1337, writer=None
                 # writer.add_scalar("LR", lr, epoch)
                 writer.flush()
             print(f"Epoch: {i} \t Train/Test: {train_loss:.3E} / {test_loss:.3E}")
+
+    if writer is not None:
+        test_loss = 0
+        test_loss = 0
+        for test in test_loader:
+            val_loss = loss_fn(params, test)
+            test_loss += val_loss
+        test_loss /= test_loader._n_batches
+        test_loss = jax.device_get(test_loss)
+
+        hparam_dict = dict(config)
+        writer.add_hparams(hparam_dict, {"hparam/test_loss": test_loss})
+        writer.flush()
+        writer.close()
     return params
