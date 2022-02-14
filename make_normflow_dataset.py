@@ -1,5 +1,6 @@
 import os
 import pickle
+import json
 from argparse import ArgumentParser
 
 import numpy as np
@@ -7,7 +8,7 @@ from scipy.stats import qmc
 import scipy.stats
 
 from hyperion.constants import Constants
-from hyperion.medium import cascadia_ref_index_func, sca_len_func_antares
+from hyperion.medium import medium_collections
 from hyperion.pmt.pmt import make_calc_wl_acceptance_weight
 from hyperion.utils import (
     calc_tres,
@@ -16,15 +17,19 @@ from hyperion.utils import (
     make_cascadia_abs_len_func,
 )
 
-ref_index_func = cascadia_ref_index_func
-abs_len = make_cascadia_abs_len_func(sca_len_func_antares)
+path_to_config = os.path.join(os.path.dirname(__file__), "data/pone_config.json")
+config = json.load(open(path_to_config))["photon_propagation"]
+ref_ix_f, sca_a_f, sca_l_f = medium_collections[config["medium"]]
+
+ref_index_func = ref_ix_f
+abs_len = make_cascadia_abs_len_func(sca_l_f)
 path_to_wl_file = os.path.join(os.path.dirname(__file__), "data/PMTAcc.csv")
 wl_acc = make_calc_wl_acceptance_weight(path_to_wl_file)
 
 
 def c_medium_f(wl):
     """Speed of light in medium for wl (nm)."""
-    return Constants.BaseConstants.c_vac / cascadia_ref_index_func(wl)
+    return Constants.BaseConstants.c_vac / ref_ix_f(wl)
 
 
 def make_dataset(files, seed, tt=4, tts=1.45):
