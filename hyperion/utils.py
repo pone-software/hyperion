@@ -1,8 +1,11 @@
 """Utility functions."""
+import jax
+import jax.numpy as jnp
 import numpy as np
 import scipy.stats
+from jax.lax import Precision
 from scipy.interpolate import UnivariateSpline
-from scipy.special import gammaincc, gamma
+from scipy.special import gamma, gammaincc
 
 from .constants import Constants
 
@@ -151,3 +154,30 @@ def make_cascadia_abs_len_func(sca_len_func):
         return 1 / (1 / np.exp(spl(wavelength)) - 1 / sca_len_func(wavelength))
 
     return abs_len
+
+
+def rotate_to_new_direc(old_dir, new_dir, operand):
+    def _rotate(operand):
+
+        axis = jnp.cross(old_dir, new_dir)
+        axis /= jnp.linalg.norm(axis)
+
+        theta = jnp.arccos(jnp.dot(old_dir, new_dir, precision=Precision.HIGHEST))
+
+        # Rodrigues' rotation formula
+
+        v_rot = (
+            operand * jnp.cos(theta)
+            + jnp.cross(axis, operand) * jnp.sin(theta)
+            + axis
+            * jnp.dot(axis, operand, precision=Precision.HIGHEST)
+            * (1 - jnp.cos(theta))
+        )
+        return v_rot
+
+    v_rot = jax.lax.cond(jnp.all(old_dir == new_dir), lambda op: op, _rotate, operand)
+
+    return v_rot
+
+
+rotate_to_new_direc_v = jax.jit(jax.vmap(rotate_to_new_direc, in_axes=[None, None, 0]))

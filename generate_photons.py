@@ -1,12 +1,14 @@
 """Generate photons for a range of emitter-reciever distances."""
-from jax.config import config
+from jax.config import config as jax_conf
 
-config.update("jax_enable_x64", True)
+jax_conf.update("jax_enable_x64", True)
 
 import pickle
+import json
 import jax
 import jax.numpy as jnp
 import numpy as np
+import os
 
 from argparse import ArgumentParser
 from scipy.stats import qmc
@@ -24,11 +26,7 @@ from hyperion.propagate import (
     make_step_function,
 )
 
-from hyperion.medium import (
-    mixed_hg_rayleigh_antares,
-    cascadia_ref_index_func,
-    sca_len_func_antares,
-)
+from hyperion.medium import medium_collections
 from hyperion.utils import calculate_min_number_steps
 
 
@@ -58,6 +56,8 @@ args = parser.parse_args()
 if jax.default_backend() == "cpu":
     raise RuntimeError("Running on CPU. Bailing...")
 
+path_to_config = os.path.join(os.path.dirname(__file__), "data/pone_config.json")
+config = json.load(open(path_to_config))["photon_propagation"]
 
 outfile = open(args.outfile, "wb")
 outfile.close()
@@ -65,8 +65,11 @@ outfile.close()
 emitter_x = jnp.array([0, 0, 0.0])
 emitter_t = 0.0
 
+ref_ix_f, sca_a_f, sca_l_f = medium_collections[config["medium"]]
+
+
 wavelength_init = make_cherenkov_spectral_sampling_func(
-    [290, 700], cascadia_ref_index_func
+    config["wavelength_range"], ref_ix_f
 )
 photon_init = make_fixed_pos_time_initializer(
     emitter_x, emitter_t, initialize_direction_isotropic, wavelength_init
@@ -92,13 +95,18 @@ for det_dist in tqdm(dists, total=len(dists), disable=True):
 
     step_fun = make_step_function(
         intersection_f=intersection_f,
-        scattering_function=mixed_hg_rayleigh_antares,
-        scattering_length_function=sca_len_func_antares,
-        ref_index_func=cascadia_ref_index_func,
+        scattering_function=sca_a_f,
+        scattering_length_function=sca_l_f,
+        ref_index_func=ref_ix_f,
     )
 
     n_steps = calculate_min_number_steps(
-        cascadia_ref_index_func, sca_len_func_antares, det_dist, 500, 290, 0.01
+        ref_ix_f,
+        sca_l_f,
+        det_dist,
+        500,
+        config["wavelength_range"][0],
+        0.01,
     )
 
     print(f"Propagation steps: {n_steps}")

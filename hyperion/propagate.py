@@ -9,6 +9,7 @@ from jax.lax import cond, fori_loop, while_loop
 from scipy.integrate import quad
 
 from .constants import Constants
+from .utils import rotate_to_new_direc
 
 
 def sph_to_cart(theta, phi=0, r=1):
@@ -18,6 +19,44 @@ def sph_to_cart(theta, phi=0, r=1):
     z = r * jnp.cos(theta)
 
     return jnp.array([x, y, z])
+
+
+def photon_sphere_intersection(
+    photon_x, photon_p, target_x, target_r, step_size, dtype=jnp.float64
+):
+    """
+    Calculate intersection.
+
+    Given a photon origin, a photon direction, a step size, a target location and a target radius,
+    calculate whether the photon intersects the target and the intrsection point.
+
+    Parameters:
+        photon_x: float[3]
+        photon_p: float[3]
+        step_size: float
+
+    Returns:
+        tuple(bool, float[3])
+            True and intersection position if intersected.
+    """
+    p_normed = jnp.asarray(photon_p, dtype=dtype)  # assume normed
+
+    a = jnp.dot(p_normed, (photon_x - target_x))
+    b = a ** 2 - (jnp.linalg.norm(photon_x - target_x) ** 2 - target_r ** 2)
+    # Distance of of the intersection point along the line
+    d = -a - jnp.sqrt(b)
+
+    isected = (b >= 0) & (d > 0) & (d < step_size)
+
+    # need to check intersection here, otherwise nan-gradients (sqrt(b) if b < 0)
+    result = cond(
+        isected,
+        lambda _: (True, photon_x + d * p_normed),
+        lambda _: (False, jnp.ones(3) * 1e8),
+        0,
+    )
+
+    return result
 
 
 def make_photon_sphere_intersection_func(target_x, target_r, dtype=jnp.float64):
@@ -31,42 +70,36 @@ def make_photon_sphere_intersection_func(target_x, target_r, dtype=jnp.float64):
     target_x = jnp.asarray(target_x, dtype=dtype)
     target_r = dtype(target_r)
 
-    def photon_sphere_intersection(photon_x, photon_p, step_size):
-        """
-        Calculate intersection.
+    return functools.partial(
+        photon_sphere_intersection, target_x=target_x, target_r=target_r, dtype=dtype
+    )
 
-        Given a photon origin, a photon direction, a step size, a target location and a target radius,
-        calculate whether the photon intersects the target and the intrsection point.
 
-        Parameters:
-            photon_x: float[3]
-            photon_p: float[3]
-            step_size: float
+def make_multi_photon_sphere_intersection_func(target_x, target_r, dtype=jnp.float64):
+    """
+    Make a function that calculates the intersection of a photon path with multiple spheres.
 
-        Returns:
-            tuple(bool, float[3])
-                True and intersection position if intersected.
-        """
-        p_normed = jnp.asarray(photon_p, dtype=dtype)  # assume normed
+    Parameters:
+        target_x: float[N, 3]
+        target_r: float[N]
+    """
+    target_x = jnp.asarray(target_x, dtype=dtype)
+    target_r = jnp.asarray(target_r, dtype=dtype)
 
-        a = jnp.dot(p_normed, (photon_x - target_x))
-        b = a ** 2 - (jnp.linalg.norm(photon_x - target_x) ** 2 - target_r ** 2)
-        # Distance of of the intersection point along the line
-        d = -a - jnp.sqrt(b)
+    isec_func_v = jax.vmap(photon_sphere_intersection, in_axes=[None, None, 0, 0, None])
 
-        isected = (b >= 0) & (d > 0) & (d < step_size)
+    def f(photon_x, photon_p, step_size):
+        isecs = isec_func_v(photon_x, photon_p, target_x, target_r, step_size)
+        any_isec = jnp.any(isecs[0])
 
-        # need to check intersection here, otherwise nan-gradients (sqrt(b) if b < 0)
-        result = cond(
-            isected,
-            lambda _: (True, photon_x + d * p_normed),
+        return cond(
+            any_isec,
+            lambda _: (True, isecs[1].at[jnp.argsort(isecs[0])[-1]].get()),
             lambda _: (False, jnp.ones(3, dtype=dtype) * 1e8),
             0,
         )
 
-        return result
-
-    return photon_sphere_intersection
+    return f
 
 
 def make_photon_spherical_shell_intersection(
@@ -293,9 +326,9 @@ def make_step_function(
 
         # Calculate intersection
         isec, isec_pos = intersection_f(
-            pos,
-            dir,
-            step_size,
+            photon_x=pos,
+            photon_p=dir,
+            step_size=step_size,
         )
 
         isec_time = dtype(time + jnp.linalg.norm(pos - isec_pos) / c_medium)
@@ -462,6 +495,73 @@ def make_fixed_time_initializer(
             "isec": False,
             "stepcnt": jnp.int32(0),
             "wavelength": wavelength_init(k3),
+        }
+        return initial_photon_state
+
+    return init
+
+
+def make_track_segment_fixed_time_pos_dir_initializer(
+    initial_time,
+    track_pos,
+    track_dir,
+    wavelength_init,
+    phase_velo_func,
+    segment_length,
+    dtype=jnp.float64,
+):
+    """
+    Initialize a track segment with fixed time, position and direction.
+
+    The photon emission position is sampled uniformly along the track (while adjusting the time).
+    Emission angle is calculated from the wavelength.
+
+    initial_time: float
+        Track starting time
+    track_pos: float[3]
+        Track starting position
+    track_dir: float[3]
+        Track direction
+    wavelength_init: function
+        wavelength initializer
+    phase_velo_func: function
+        function that returns the phase velocity as function of wavelength
+    segment_length: float
+        length of the segment
+    """
+
+    initial_time = dtype(initial_time)
+    track_pos = jnp.asarray(track_pos, dtype=dtype)
+    track_dir = jnp.asarray(track_dir, dtype=dtype)
+
+    def init(rng_key):
+        k1, k2, k3 = random.split(rng_key, 3)
+
+        # sample position along track
+        dist_along = random.uniform(k1, minval=0, maxval=segment_length)
+        time_along = initial_time + dist_along / Constants.BaseConstants.c_vac
+        position = track_pos + dist_along * track_dir
+
+        # sample wavelength
+        wl = wavelength_init(k2)
+
+        cherenkov_angle_theta = jnp.arccos(1 / phase_velo_func(wl))
+        phi_angle = random.uniform(k3, minval=0, maxval=2 * np.pi)
+
+        photon_rel_dir = sph_to_cart(cherenkov_angle_theta, phi_angle)
+
+        photon_dir = rotate_to_new_direc(
+            jnp.asarray([0, 0, 1.0]), track_dir, photon_rel_dir
+        )
+
+        # Set initial photon state
+        initial_photon_state = {
+            "pos": position,
+            "dir": photon_dir,
+            "time": time_along,
+            "isec": False,
+            "stepcnt": jnp.int32(0),
+            "wavelength": wl,
         }
         return initial_photon_state
 

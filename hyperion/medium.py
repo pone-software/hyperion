@@ -156,3 +156,7 @@ antares_ref_index_func = make_ref_index_func(
 cascadia_ref_index_func = make_ref_index_func(
     pressure=269.44088 / 1.01325, temperature=1.8, salinity=34.82
 )
+
+medium_collections = {
+    "pone": (cascadia_ref_index_func, mixed_hg_rayleigh_antares, sca_len_func_antares)
+}
