@@ -48,15 +48,13 @@ parser.add_argument(
 parser.add_argument(
     "--min_dist", type=float, required=False, dest="min_dist", default=1
 )
-parser.add_argument(
-    "-r", "--det-radius", type=float, required=True, dest="det_radius", default=None
-)
+parser.add_argument("-c", "--config", type=str, required=True, dest="config")
 args = parser.parse_args()
 
 if jax.default_backend() == "cpu":
     raise RuntimeError("Running on CPU. Bailing...")
 
-path_to_config = os.path.join(os.path.dirname(__file__), "data/pone_config.json")
+path_to_config = os.path.join(os.path.dirname(__file__), f"data/{args.config}")
 config = json.load(open(path_to_config))["photon_propagation"]
 
 outfile = open(args.outfile, "wb")
@@ -65,7 +63,7 @@ outfile.close()
 emitter_x = jnp.array([0, 0, 0.0])
 emitter_t = 0.0
 
-ref_ix_f, sca_a_f, sca_l_f = medium_collections[config["medium"]]
+ref_ix_f, sca_a_f, sca_l_f, _ = medium_collections[config["medium"]]
 
 
 wavelength_init = make_cherenkov_spectral_sampling_func(
@@ -91,7 +89,9 @@ all_data = []
 for det_dist in tqdm(dists, total=len(dists), disable=True):
     det_pos = jnp.array([0, 0, det_dist])
 
-    intersection_f = make_photon_sphere_intersection_func(det_pos, args.det_radius)
+    intersection_f = make_photon_sphere_intersection_func(
+        det_pos, config["module_radius"]
+    )
 
     step_fun = make_step_function(
         intersection_f=intersection_f,

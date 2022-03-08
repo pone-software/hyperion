@@ -1,5 +1,4 @@
 """Example script showing how to propagate photons."""
-import json
 
 import jax.numpy as jnp
 from hyperion.constants import Constants

@@ -1,0 +1,14 @@
+{
+    "photon_propagation": {
+        "wavelength_range": [
+            290,
+            700
+        ],
+        "medium": "pone_pessimistic",
+        "module_radius": 0.21
+    },
+    "pmt": {
+        "qe_curve": "PMTAcc.csv",
+        "max_qe": 0.27
+    }
+}

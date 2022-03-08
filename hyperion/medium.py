@@ -1,15 +1,17 @@
 """This module hosts a collection of functions related to the optical properties of a medium."""
+import jax
 import jax.numpy as jnp
 from jax import random
-import jax
 from jax.lax import cond
+from scipy.interpolate import UnivariateSpline
+import numpy as np
 
 
 def henyey_greenstein_scattering_angle(key, g=0.9):
     """Henyey-Greenstein scattering in one plane."""
     eta = random.uniform(key)
     costheta = (
-        1 / (2 * g) * (1 + g ** 2 - ((1 - g ** 2) / (1 + g * (2 * eta - 1))) ** 2)
+        1 / (2 * g) * (1 + g**2 - ((1 - g**2) / (1 + g * (2 * eta - 1))) ** 2)
     )
     return jnp.arccos(costheta)
 
@@ -39,7 +41,7 @@ def liu_scattering_angle(key, g=0.95):
     """
     beta = (1 - g) / (1 + g)
     xi = random.uniform(key)
-    costheta = 2 * xi ** beta - 1
+    costheta = 2 * xi**beta - 1
     return jnp.arccos(costheta)
 
 
@@ -107,6 +109,32 @@ def make_wl_dep_sca_len_func(vol_conc_small_part, vol_conc_large_part):
 sca_len_func_antares = make_wl_dep_sca_len_func(0.0075, 0.0075)
 
 
+def make_cascadia_attenuation_func():
+    att_lengths = np.asarray([[365, 10.4], [400, 14.6], [450, 27.7], [585, 7.1]])
+    spl = UnivariateSpline(att_lengths[:, 0], np.log(att_lengths[:, 1]), k=2, s=0.01)
+
+    def f(wavelength):
+        return np.exp(spl(wavelength))
+
+    return f
+
+
+cascadia_att_func = make_cascadia_attenuation_func()
+
+
+def make_abs_len_func_from_att_len(att_len_func, sca_len_func):
+    def abs_len(wavelength):
+        return 1 / (1 / att_len_func(wavelength) - 1 / sca_len_func(wavelength))
+
+    return abs_len
+
+
+abs_len_func_cascadia_optimistic = make_abs_len_func_from_att_len(
+    cascadia_att_func, sca_len_func_antares
+)
+abs_len_func_cascadia_pessimistic = cascadia_att_func
+
+
 def make_ref_index_func(salinity, temperature, pressure):
     """
     Make function that returns refractive index as function of wavelength.
@@ -158,5 +186,16 @@ cascadia_ref_index_func = make_ref_index_func(
 )
 
 medium_collections = {
-    "pone": (cascadia_ref_index_func, mixed_hg_rayleigh_antares, sca_len_func_antares)
+    "pone_optimistic": (
+        cascadia_ref_index_func,
+        mixed_hg_rayleigh_antares,
+        sca_len_func_antares,
+        abs_len_func_cascadia_optimistic,
+    ),
+    "pone_pessimistic": (
+        cascadia_ref_index_func,
+        mixed_hg_rayleigh_antares,
+        sca_len_func_antares,
+        abs_len_func_cascadia_pessimistic,
+    ),
 }

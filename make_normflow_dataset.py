@@ -14,25 +14,23 @@ from hyperion.utils import (
     calc_tres,
     cherenkov_ang_dist,
     cherenkov_ang_dist_int,
-    make_cascadia_abs_len_func,
 )
 
-path_to_config = os.path.join(os.path.dirname(__file__), "data/pone_config.json")
-config = json.load(open(path_to_config))["photon_propagation"]
-ref_ix_f, sca_a_f, sca_l_f = medium_collections[config["medium"]]
 
-ref_index_func = ref_ix_f
-abs_len = make_cascadia_abs_len_func(sca_l_f)
-path_to_wl_file = os.path.join(os.path.dirname(__file__), "data/PMTAcc.csv")
-wl_acc = make_calc_wl_acceptance_weight(path_to_wl_file)
+def make_dataset(files, seed, config, tt=4, tts=1.45):
+    pprop_conf = config["photon_propagation"]
+    pmt_conf = config["pmt"]
 
+    ref_ix_f, _, _, abs_l_f = medium_collections[pprop_conf["medium"]]
 
-def c_medium_f(wl):
-    """Speed of light in medium for wl (nm)."""
-    return Constants.BaseConstants.c_vac / ref_ix_f(wl)
+    path_to_wl_file = os.path.join(
+        os.path.dirname(__file__), f"data/{pmt_conf['qe_curve']}"
+    )
+    wl_acc = make_calc_wl_acceptance_weight(path_to_wl_file)
 
-
-def make_dataset(files, seed, tt=4, tts=1.45):
+    def c_medium_f(wl):
+        """Speed of light in medium for wl (nm)."""
+        return Constants.BaseConstants.c_vac / ref_ix_f(wl)
 
     rstate = np.random.RandomState(seed)
 
@@ -57,9 +55,11 @@ def make_dataset(files, seed, tt=4, tts=1.45):
         wavelengths = sim_data["wavelengths"]
 
         prop_dist = isec_times * c_medium_f(wavelengths) / 1e9
-        abs_weight = np.exp(-prop_dist / abs_len(wavelengths))
-        wl_weight = wl_acc(wavelengths, 0.27)
-        tres = calc_tres(isec_times, 0.21, det_dist, c_medium_f(700) / 1e9)
+        abs_weight = np.exp(-prop_dist / abs_l_f(wavelengths))
+        wl_weight = wl_acc(wavelengths, pmt_conf["max_qe"])
+        tres = calc_tres(
+            isec_times, pprop_conf["module_radius"], det_dist, c_medium_f(700) / 1e9
+        )
 
         costhetas = 2 * sampler.random_base2(m=6) - 1
 
@@ -68,9 +68,9 @@ def make_dataset(files, seed, tt=4, tts=1.45):
         for obs_ang in obs_angs:
             c_weight = (
                 cherenkov_ang_dist(
-                    np.cos(ph_thetas - obs_ang), n_ph=ref_index_func(wavelengths)
+                    np.cos(ph_thetas - obs_ang), n_ph=ref_ix_f(wavelengths)
                 )
-                / cherenkov_ang_dist_int(ref_index_func(wavelengths), -1, 1)
+                / cherenkov_ang_dist_int(ref_ix_f(wavelengths), -1, 1)
                 * 2
             )
 
@@ -87,8 +87,8 @@ def make_dataset(files, seed, tt=4, tts=1.45):
 
             if tts > 0:
 
-                a = tt ** 2 / tts ** 2
-                b = tts ** 2 / tt
+                a = tt**2 / tts**2
+                b = tts**2 / tt
                 pdf = scipy.stats.gamma(a, scale=b)
 
                 dt = pdf.rvs(size=len(surv_ph), random_state=rstate) - tt
@@ -118,8 +118,13 @@ def main():
     parser.add_argument("-o", "--outfile", dest="outfile", required=True)
     parser.add_argument("--tts", dest="tts", default=0, type=float)
     parser.add_argument("-s", "--seed", dest="seed", default=0, type=int)
+    parser.add_argument("-c", "--config", type=str, required=True, dest="config")
     args = parser.parse_args()
-    data = make_dataset([args.infile], seed=args.seed, tts=args.tts)
+
+    path_to_config = os.path.join(os.path.dirname(__file__), f"data/{args.config}")
+    config = json.load(open(path_to_config))
+
+    data = make_dataset([args.infile], config=config, seed=args.seed, tts=args.tts)
     pickle.dump(data, open(args.outfile, "wb"))
 
 
