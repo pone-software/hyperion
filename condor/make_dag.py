@@ -34,5 +34,5 @@ with open("generate_photons_fourth.dag", "w") as hdl:
             for config in ["optimistic", "pessimistic"]:
                 hdl.write(f"JOB {i}_hist_{tts} submit_nflow_ds.sub\n")
                 hdl.write(
-                    f'VARS {i}_hist_{tts} infile="photon_table_{i}.pickle" outfile="photon_nflow_ds_{i}_{tts}.pickle" seed="{i}" tts="{tts}" config="{config}"\n'
+                    f'VARS {i}_hist_{tts} infile="photon_table_{i}.pickle" outfile="photon_nflow_ds_{i}_{tts}_{config}.pickle" seed="{i}" tts="{tts}" config="{config}"\n'
                 )
