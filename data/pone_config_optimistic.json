@@ -8,7 +8,7 @@
         "module_radius": 0.21
     },
     "pmt": {
-        "acc_curve": "PMTAcc.csv",
-        "max_acc": 0.27
+        "qe_curve": "PMTAcc.csv",
+        "max_qe": 0.27
     }
 }
