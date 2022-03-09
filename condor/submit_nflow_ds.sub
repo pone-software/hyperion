@@ -1,6 +1,6 @@
 +SingularityImage = "/data/p-one/chaack/container/pytorch-geo.sif"
 executable = /bin/env
-arguments = python /data/p-one/chaack/hyperion/make_normflow_dataset.py -i $(infile) -o $(outfile) -s $(seed) --tts $(tts)
+arguments = python /data/p-one/chaack/hyperion/make_normflow_dataset.py -i $(infile) -o $(outfile) -s $(seed) --tts $(tts) --config /data/p-one/chaack/hyperion/data/pone_config_$(config).json
 Requirements = HasSingularity
 request_gpus = 0
 log = logs/log

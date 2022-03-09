@@ -135,3 +135,4 @@ dmypy.json
 *.bz2
 *.gz
 /figures
+condor/submit_nflow_ds.sub
