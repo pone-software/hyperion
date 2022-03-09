@@ -13,12 +13,6 @@ with open("generate_photons.dag", "w") as hdl:
             f'VARS {i}_photons dist="{dist}" outfile="photon_table_{i}.pickle" seed="{i}"\n'
         )
 
-        hdl.write(f"JOB {i}_fit submit_fit.sub\n")
-        hdl.write(
-            f'VARS {i}_fit infile="photon_table_{i}.pickle" outfile="photon_fitpars_{i}.pickle" seed="{i}"\n'
-        )
-        hdl.write(f"PARENT {i}_photons CHILD {i}_fit\n")
-
 with open("generate_photons_second.dag", "w") as hdl:
     for i, dist in enumerate(dists):
         hdl.write(f"JOB {i}_fit submit_fit.sub\n")
@@ -36,8 +30,9 @@ with open("generate_photons_third.dag", "w") as hdl:
 
 with open("generate_photons_fourth.dag", "w") as hdl:
     for i, dist in enumerate(dists):
-        for tts in [0, 1, 2]:
-            hdl.write(f"JOB {i}_hist_{tts} submit_nflow_ds.sub\n")
-            hdl.write(
-                f'VARS {i}_hist_{tts} infile="photon_table_{i}.pickle" outfile="photon_nflow_ds_{i}_{tts}.pickle" seed="{i}" tts="{tts}"\n'
-            )
+        for tts in [0, 1.45, 2]:
+            for config in ["optimistic", "pessimistic"]:
+                hdl.write(f"JOB {i}_hist_{tts} submit_nflow_ds.sub\n")
+                hdl.write(
+                    f'VARS {i}_hist_{tts} infile="photon_table_{i}.pickle" outfile="photon_nflow_ds_{i}_{tts}.pickle" seed="{i}" tts="{tts}" config="{config}"\n'
+                )

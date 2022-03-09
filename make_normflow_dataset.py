@@ -121,8 +121,7 @@ def main():
     parser.add_argument("-c", "--config", type=str, required=True, dest="config")
     args = parser.parse_args()
 
-    path_to_config = os.path.join(os.path.dirname(__file__), f"data/{args.config}")
-    config = json.load(open(path_to_config))
+    config = json.load(open({args.config}))
 
     data = make_dataset([args.infile], config=config, seed=args.seed, tts=args.tts)
     pickle.dump(data, open(args.outfile, "wb"))
