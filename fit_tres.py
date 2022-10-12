@@ -28,7 +28,7 @@ from hyperion.constants import Constants  # noqa: E402
 
 
 def make_data(t, w, det_dist, det_radius, c_medium, thr=2):
-    """Truncate data below threshold."""
+    """Truncate dataset below threshold."""
     tres = calc_tres(t, det_radius, det_dist, c_medium)
     mask = tres > thr
 
@@ -184,7 +184,7 @@ if __name__ == "__main__":
                 replace=False,
             )
             try:
-                fb5_pars = fb5_mle(rel[idx], totw[idx])  # use at most 100k data points
+                fb5_pars = fb5_mle(rel[idx], totw[idx])  # use at most 100k dataset points
             except AssertionError:
                 print(isec_poss[idx])
                 continue

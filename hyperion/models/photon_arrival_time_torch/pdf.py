@@ -14,7 +14,7 @@ def make_exp_exp(data, weights):
     """
     Create a two-exponential mixture model pdf.
 
-    This functions returns the likelihood evaluated on data and weights, and
+    This functions returns the likelihood evaluated on dataset and weights, and
     the likelihood function.
 
     Parameters:
@@ -40,7 +40,7 @@ def make_exp_exp(data, weights):
 
 def make_obj_func(pdf, data, weights, nargs):
     """
-    Build a likelihood from a PDF, data points and weights.
+    Build a likelihood from a PDF, dataset points and weights.
 
     Returns:
     Objective function and gradient
@@ -114,7 +114,7 @@ def make_gamma_exponential(data, weights):
     """
     Create a gamma-exponential mixture model pdf.
 
-    This functions returns the likelihood evaluated on data and weights, and
+    This functions returns the likelihood evaluated on dataset and weights, and
     the likelihood function.
 
     Parameters:
@@ -145,7 +145,7 @@ def make_gamma_exponential(data, weights):
 
 def fb5_mle(xs, weights, warning="warn"):
     """
-    Fits FB5 distribution to weighted data.
+    Fits FB5 distribution to weighted dataset.
     """
 
     # method that generates the minus L to be minimized

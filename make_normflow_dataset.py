@@ -43,8 +43,8 @@ def make_dataset(files, seed, config, tt=4, tts=1.45):
         data = pickle.load(open(file, "rb"))
         sampler = qmc.Sobol(d=1, scramble=True, seed=rstate)
 
-        # npick = min(dlim, len(data[0]["times_det"]))
-        # ixs = rstate.choice(np.arange(len(data[0]["times_det"])), size=npick, replace=False)
+        # npick = min(dlim, len(dataset[0]["times_det"]))
+        # ixs = rstate.choice(np.arange(len(dataset[0]["times_det"])), size=npick, replace=False)
         sim_data = data[0]
         det_dist = sim_data["dist"]
         isec_times = sim_data["times_det"]

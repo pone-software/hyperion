@@ -85,9 +85,9 @@ writer = SummaryWriter(
 
 net, params, state = train_net(conf, train_data, test_data, writer, rng)
 
-pickle.dump([params, state, conf], open("data/arrival_hist_net_2tts_jax.pickle", "wb"))
+pickle.dump([params, state, conf], open("dataset/arrival_hist_net_2tts_jax.pickle", "wb"))
 
-params, state, conf = pickle.load(open("data/arrival_hist_net_2tts_jax.pickle", "rb"))
+params, state, conf = pickle.load(open("dataset/arrival_hist_net_2tts_jax.pickle", "rb"))
 forward_fn = make_forward_fn(conf)
 net = hk.transform_with_state(forward_fn)
 
