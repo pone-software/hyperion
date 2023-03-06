@@ -16,6 +16,9 @@ optax = "^0.1.4"
 pandas = "^1.5.3"
 
 
+[tool.poetry.group.dev.dependencies]
+jupyter = "^1.0.0"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
